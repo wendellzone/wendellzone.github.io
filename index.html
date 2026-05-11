@@ -108,26 +108,26 @@
   .toc {
     position: fixed;
     top: 110px;
-    right: max(20px, calc((100vw - 1080px) / 2 - 220px));
-    width: 180px;
+    right: max(20px, calc((100vw - 1080px) / 2 - 240px));
+    width: 220px;
     max-height: calc(100vh - 160px);
     overflow-y: auto;
-    font-size: 12.5px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.55;
     padding: 4px 0 4px 14px;
     border-left: 1px solid var(--border);
     z-index: 10;
   }
   .toc-title {
-    font-size: 11px; color: var(--fg-muted); font-weight: 600;
+    font-size: 12px; color: var(--fg-muted); font-weight: 600;
     letter-spacing: .5px; text-transform: uppercase;
-    margin-bottom: 8px; margin-left: -2px;
+    margin-bottom: 10px; margin-left: -2px;
   }
   .toc ol { list-style: none; padding: 0; margin: 0; }
   .toc li { position: relative; margin: 0; }
   .toc li > a {
     display: block;
-    padding: 5px 4px 5px 14px;
+    padding: 6px 4px 6px 14px;
     color: var(--fg-muted);
     text-decoration: none;
     border-left: 2px solid transparent;
@@ -143,14 +143,18 @@
   }
   .toc li.h3 > a {
     padding-left: 28px;
-    font-size: 12px;
+    font-size: 13px;
   }
   /* 归档时间轴（主页专用） */
+  .toc .tl-year {
+    margin-top: 6px;
+  }
+  .toc .tl-year:first-child { margin-top: 0; }
   .toc .tl-year > .tl-head {
     display: block;
     padding: 6px 4px 6px 14px;
     color: var(--fg);
-    font-weight: 600; font-size: 13px;
+    font-weight: 700; font-size: 14px;
     border-left: 2px solid transparent;
     margin-left: -16px;
     cursor: pointer; text-decoration: none;
@@ -161,19 +165,37 @@
     border-left-color: var(--link);
   }
   .toc .tl-year > .tl-head:hover { color: var(--link); text-decoration: none; }
-  .toc .tl-year .tl-month {
+  .toc .tl-month {
     display: block;
     padding: 4px 4px 4px 28px;
     font-size: 12px;
     color: var(--fg-muted);
+    font-weight: 600;
+    letter-spacing: .3px;
+    margin-top: 2px;
+  }
+  .toc .tl-month .cnt {
+    color: var(--fg-muted); opacity: .6; margin-left: 4px; font-size: 11px; font-weight: 400;
+  }
+  .toc .tl-post {
+    display: block;
+    padding: 4px 4px 4px 28px;
+    font-size: 13px;
+    color: var(--fg-soft);
     text-decoration: none;
+    border-left: 2px solid transparent;
+    margin-left: -16px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: color .15s, border-color .15s;
   }
-  .toc .tl-year .tl-month .cnt {
-    color: var(--fg-muted); opacity: .7; margin-left: 4px; font-size: 11px;
+  .toc .tl-post:hover { color: var(--link); text-decoration: none; }
+  .toc .tl-post.active {
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 600;
   }
-  .toc .tl-year .tl-month:hover { color: var(--link); text-decoration: none; }
   .toc::-webkit-scrollbar { width: 0; }
-  @media (max-width: 1480px) { .toc { display: none; } }
+  @media (max-width: 1560px) { .toc { display: none; } }
 
   /* 列表页 */
   .post-list { list-style: none; padding: 0; margin: 0; }
@@ -657,10 +679,15 @@ function buildArchiveToc(posts) {
         return `
           <li class="tl-year" data-year="${y}">
             <a class="tl-head" data-slug="${mm.get(months[0])[0].slug}" href="#post-${mm.get(months[0])[0].slug}">${y}</a>
-            ${months.map(m => `
-              <a class="tl-month" data-slug="${mm.get(m)[0].slug}" href="#post-${mm.get(m)[0].slug}">
-                ${m} 月<span class="cnt">(${mm.get(m).length})</span>
-              </a>`).join('')}
+            ${months.map(m => {
+              const list = mm.get(m);
+              return `
+                <div class="tl-month">${m} 月<span class="cnt">(${list.length})</span></div>
+                ${list.map(p => `
+                  <a class="tl-post" data-slug="${escapeHtml(p.slug)}" href="#post-${encodeURIComponent(p.slug)}" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</a>
+                `).join('')}
+              `;
+            }).join('')}
           </li>`;
       }).join('')}
     </ol>
@@ -677,8 +704,9 @@ function buildArchiveToc(posts) {
     });
   });
 
-  // scrollspy：当前视口中的文章对应的年份高亮
+  // scrollspy：当前视口中的文章对应的年份 + 文章高亮
   const yearItems = [...toc.querySelectorAll('.tl-year')];
+  const postLinks = [...toc.querySelectorAll('.tl-post')];
   const onScroll = () => {
     const items = [...document.querySelectorAll('.post-item')];
     if (!items.length) return;
@@ -689,7 +717,9 @@ function buildArchiveToc(posts) {
       else break;
     }
     const y = (current.dataset.date || '').slice(0, 4);
+    const slug = current.dataset.postSlug;
     yearItems.forEach(li => li.classList.toggle('active', li.dataset.year === y));
+    postLinks.forEach(a => a.classList.toggle('active', a.dataset.slug === slug));
   };
   _tocScrollHandler = onScroll;
   window.addEventListener('scroll', onScroll, { passive: true });
