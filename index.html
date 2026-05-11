@@ -38,7 +38,8 @@
     --code-bg: #f6f8fa;
     --panel: #ffffff;
     --panel-hover: #f6f8fa;
-    --max-width: 780px;
+    --max-width: 1080px;
+    --reading-width: 760px;
   }
   :root[data-theme="dark"] {
     --bg: #0f1117;
@@ -98,6 +99,9 @@
     max-width: var(--max-width);
     margin: 0 auto;
     padding: 32px 24px 80px;
+  }
+  main.reading {
+    max-width: var(--reading-width);
   }
 
   /* 列表页 */
@@ -417,6 +421,8 @@ async function loadPost(slug) {
 
 function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
+  const isReading = /^\/post\/|^\/about$/.test(hash);
+  app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
   if (hash === '/about')           return renderAbout();
   const m = /^\/post\/([\w\-]+)/.exec(hash);
