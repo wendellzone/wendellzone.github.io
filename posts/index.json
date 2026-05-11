@@ -3,8 +3,13 @@
     "slug": "skills-rules-ai-workflow",
     "title": "基于 Skills + Rules 构建 AI Agent 自动化工作流",
     "date": "2026-05-11",
-    "tags": ["AI Agent", "工程化", "工作流"],
-    "summary": "从零理解 Skills 与 Rules 两种机制，用上下文经济学解释为何要拆分；给出编码、运维/SRE、数据报告三个完整工作流案例，并按 Anthropic skill-creator 的最佳实践讲透 description 写法、渐进式信息披露与评测驱动迭代。"
+    "tags": [
+      "AI Agent",
+      "工程化",
+      "工作流"
+    ],
+    "summary": "从零理解 Skills 与 Rules 两种机制，用上下文经济学解释为何要拆分；给出编码、运维/SRE、数据报告三个完整工作流案例，并按 Anthropic skill-creator 的最佳实践讲透 description 写法、渐进式信息披露与评测驱动迭代。",
+    "readingTime": 15
   },
   {
     "slug": "hello-world",
@@ -13,7 +18,8 @@
     "tags": [
       "杂记"
     ],
-    "summary": "第一篇文章，介绍这个博客的技术栈与发文流程。"
+    "summary": "第一篇文章，介绍这个博客的技术栈与发文流程。",
+    "readingTime": 1
   },
   {
     "slug": "blog-post-skill",
@@ -24,7 +30,8 @@
       "WorkBuddy",
       "自动化"
     ],
-    "summary": "把发博客的本地 markdown、index.json 同步、git 提交推送流程封装成脚本，AI 一句话触发。"
+    "summary": "把发博客的本地 markdown、index.json 同步、git 提交推送流程封装成脚本，AI 一句话触发。",
+    "readingTime": 1
   },
   {
     "slug": "mira-secure-data-flow",
@@ -35,7 +42,8 @@
       "后端",
       "长安链"
     ],
-    "summary": "从上传请求到链上存证，一次把 KEK 派生、密文落盘、哈希上链的流程拆开说清楚。"
+    "summary": "从上传请求到链上存证，一次把 KEK 派生、密文落盘、哈希上链的流程拆开说清楚。",
+    "readingTime": 3
   },
   {
     "slug": "plantuml-in-markdown",
@@ -45,6 +53,7 @@
       "工具",
       "前端"
     ],
-    "summary": "用 marked 自定义 renderer + plantuml.com 的 /svg/ 服务，让 ```plantuml 代码块像普通代码一样被实时渲染。"
+    "summary": "用 marked 自定义 renderer + plantuml.com 的 /svg/ 服务，让 ```plantuml 代码块像普通代码一样被实时渲染。",
+    "readingTime": 2
   }
 ]

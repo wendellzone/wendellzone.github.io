@@ -192,6 +192,28 @@
   .loading {
     color: var(--fg-muted); text-align: center; padding: 40px 0;
   }
+
+  /* 返回顶部按钮 */
+  .back-to-top {
+    position: fixed; right: 24px; bottom: 32px;
+    width: 40px; height: 40px;
+    background: #fff; color: var(--fg-soft);
+    border: 1px solid var(--border); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; line-height: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    opacity: 0; transform: translateY(8px);
+    transition: opacity .2s, transform .2s, color .15s, border-color .15s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .back-to-top.visible {
+    opacity: 1; transform: translateY(0);
+    pointer-events: auto;
+  }
+  .back-to-top:hover {
+    color: var(--link); border-color: var(--link);
+  }
 </style>
 </head>
 <body>
@@ -215,6 +237,8 @@
   © <span id="year"></span> Wendell · 由 <a href="https://pages.github.com/" target="_blank" rel="noopener">GitHub Pages</a> 托管
 </footer>
 
+<button class="back-to-top" id="back-to-top" title="返回顶部" aria-label="返回顶部">↑</button>
+
 <script>
 /* ========================================================
    基础工具
@@ -232,6 +256,20 @@ function fmtDate(s) {
   const d = new Date(s);
   if (isNaN(d)) return s;
   return d.toISOString().slice(0, 10);
+}
+
+/* 中文按 350 字/分，英文按 250 词/分，二者相加后向上取整；最少 1 分钟 */
+function readingTime(md) {
+  if (!md) return 1;
+  // 去掉代码块与 frontmatter，免得 ``` 里的东西被算进去（粗略）
+  const stripped = md
+    .replace(/^---[\s\S]*?---/m, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]*`/g, '');
+  const cn = (stripped.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const en = (stripped.match(/[A-Za-z]+(?:['-][A-Za-z]+)*/g) || []).length;
+  const minutes = Math.ceil(cn / 350 + en / 250);
+  return Math.max(1, minutes);
 }
 
 /* ========================================================
@@ -388,6 +426,7 @@ async function renderList() {
           <h2><a href="#/post/${encodeURIComponent(p.slug)}">${escapeHtml(p.title)}</a></h2>
           <div class="post-meta">
             <span>${fmtDate(p.date)}</span>
+            ${p.readingTime ? `<span>约 ${p.readingTime} 分钟</span>` : ''}
             ${(p.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join('')}
           </div>
           ${p.summary ? `<p class="post-summary">${escapeHtml(p.summary)}</p>` : ''}
@@ -423,6 +462,7 @@ async function renderPost(slug) {
 
     // 去掉文件开头的 frontmatter（--- ... ---）
     const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '');
+    const rt = meta?.readingTime || readingTime(body);
 
     const tagsHtml = (meta?.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join(' ');
 
@@ -432,6 +472,7 @@ async function renderPost(slug) {
         <h1>${escapeHtml(meta?.title || slug)}</h1>
         <div class="post-meta">
           <span>${fmtDate(meta?.date)}</span>
+          <span>约 ${rt} 分钟</span>
           ${tagsHtml}
         </div>
       </div>
@@ -471,6 +512,20 @@ function renderNotFound() {
     <a class="back-link" href="#/">← 返回列表</a>
     <div class="empty">页面未找到</div>`;
 }
+
+/* ========================================================
+   返回顶部
+======================================================== */
+const backBtn = document.getElementById('back-to-top');
+function updateBackBtn() {
+  if (window.scrollY > 400) backBtn.classList.add('visible');
+  else backBtn.classList.remove('visible');
+}
+window.addEventListener('scroll', updateBackBtn, { passive: true });
+backBtn.addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+updateBackBtn();
 
 /* ========================================================
    启动
