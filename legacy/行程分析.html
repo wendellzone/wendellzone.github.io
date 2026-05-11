@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新西兰南岛行程分析报告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+  
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f0f4f8;
+    color: #2d3748;
+    line-height: 1.7;
+    padding: 40px;
+    width: 900px;
+  }
+  
+  .container {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  
+  .header {
+    background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 50%, #4299e1 100%);
+    color: white;
+    padding: 48px 48px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 400px;
+    height: 400px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+  }
+  
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+  
+  .header .subtitle {
+    font-size: 15px;
+    opacity: 0.85;
+    font-weight: 300;
+    line-height: 1.6;
+  }
+  
+  .header .route-tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 13px;
+    margin-top: 16px;
+    backdrop-filter: blur(10px);
+  }
+  
+  .content { padding: 40px 48px 48px; }
+  
+  .section {
+    margin-bottom: 36px;
+  }
+  
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a365d;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .section-title .icon {
+    font-size: 24px;
+  }
+  
+  .card {
+    background: #fafbfc;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4299e1;
+  }
+  
+  .card.danger {
+    border-left-color: #e53e3e;
+    background: #fff5f5;
+  }
+  
+  .card.warning {
+    border-left-color: #ed8936;
+    background: #fffaf0;
+  }
+  
+  .card.success {
+    border-left-color: #38a169;
+    background: #f0fff4;
+  }
+  
+  .card.info {
+    border-left-color: #4299e1;
+    background: #ebf8ff;
+  }
+  
+  .card h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #2d3748;
+    margin-bottom: 12px;
+  }
+  
+  .card p, .card li {
+    font-size: 14px;
+    color: #4a5568;
+    margin-bottom: 6px;
+  }
+  
+  .card ul {
+    padding-left: 20px;
+  }
+  
+  .card li {
+    margin-bottom: 4px;
+  }
+  
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  
+  .badge.red { background: #fed7d7; color: #c53030; }
+  .badge.orange { background: #feebc8; color: #c05621; }
+  .badge.green { background: #c6f6d5; color: #276749; }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13.5px;
+  }
+  
+  thead th {
+    background: #edf2f7;
+    color: #2d3748;
+    font-weight: 600;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 2px solid #cbd5e0;
+  }
+  
+  tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #4a5568;
+  }
+  
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f7fafc; }
+  
+  .highlight {
+    background: #fefcbf;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  
+  .bold { font-weight: 700; color: #2d3748; }
+  
+  .schedule-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  
+  .schedule-card h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #2b6cb0;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #bee3f8;
+  }
+  
+  .schedule-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  
+  .schedule-time {
+    min-width: 120px;
+    font-weight: 600;
+    color: #2b6cb0;
+  }
+  
+  .schedule-desc {
+    color: #4a5568;
+  }
+  
+  .summary-table {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+  
+  .summary-table thead th {
+    background: #1a365d;
+    color: white;
+  }
+  
+  .footer {
+    background: #f7fafc;
+    padding: 24px 48px;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+    font-size: 14px;
+    color: #718096;
+    font-style: italic;
+    line-height: 1.8;
+  }
+  
+  .equipment-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+    margin: 12px 0;
+  }
+  
+  .equipment-item {
+    font-size: 14px;
+    color: #4a5568;
+    padding: 4px 0;
+  }
+  
+  .temp-table td:first-child { font-weight: 600; color: #2d3748; }
+  
+  .priority-row td:first-child { text-align: center; }
+  
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #cbd5e0, transparent);
+    margin: 32px 0;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>🇳🇿 新西兰南岛行程分析报告</h1>
+    <div class="subtitle">行程时间：2026年4月30日 – 5月4日</div>
+    <div class="route-tag">📍 皇后镇 → 箭镇 → 瓦纳卡 → 特卡波 → 库克山 → 基督城</div>
+  </div>
+
+  <div class="content">
+  
+    <!-- Section 1: 重大问题 -->
+    <div class="section">
+      <div class="section-title"><span class="icon">🚨</span> 一、重大问题（必须调整）</div>
+      
+      <div class="card danger">
+        <h3>1. Hooker Valley Track 步道可能仍处于关闭状态 <span class="badge red">⭐高风险</span></h3>
+        <p><strong>这是全程"最高光时刻"，但有重大风险。</strong></p>
+        <p style="margin-top:8px">截至2026年3月，Hooker Valley Track <strong>第二座吊桥因侵蚀受损被拆除重建</strong>，步道只开放到 Mount Sefton 观景点（约全程一半，往返 4.3 公里），<strong>无法到达 Hooker Lake 冰碛湖和近距离看库克山的终点</strong>。</p>
+        <p>DOC（新西兰环保部）预计 <span class="highlight">2026年秋季</span> 完工重新开放。5月3日有可能已经开放，也有可能仍在施工。</p>
+        <p style="margin-top:10px"><strong>建议：</strong></p>
+        <ul>
+          <li>出发前密切关注 DOC官网 和 planmywalk.nz 的最新状态</li>
+          <li>即使未全面开放，开放的 4.3 公里段仍值得走（Mueller Lake + 第一座吊桥 + Mount Sefton 景观很壮观）</li>
+          <li><strong>准备 Plan B：</strong> Tasman Glacier View Track（约 30 分钟）+ Kea Point Track（约 2 小时，可远眺库克山）</li>
+          <li>如果想要终极体验 → 🚁 <strong>直升机冰川游览</strong>，从空中看库克山反而更震撼</li>
+        </ul>
+      </div>
+
+      <div class="card danger">
+        <h3>2. 4月30日下午行程过于紧凑 + 日落时间早 <span class="badge red">⭐高风险</span></h3>
+        <p><strong>5月1日前后，皇后镇日落时间约 17:44，天黑约 18:15。</strong></p>
+        <table>
+          <thead><tr><th>时间</th><th>原计划活动</th></tr></thead>
+          <tbody>
+            <tr><td>~14:00</td><td>出发去箭镇（20分钟）</td></tr>
+            <tr><td>~14:30–15:30</td><td>漫步箭镇</td></tr>
+            <tr><td>~15:45</td><td>到 Gibbston Valley（15分钟）</td></tr>
+            <tr><td>~16:00–17:00</td><td>品酒</td></tr>
+            <tr><td>~17:00</td><td>出发去瓦纳卡（约1.5小时）</td></tr>
+            <tr><td style="color:#c53030;font-weight:700">~18:30</td><td style="color:#c53030;font-weight:700">抵达瓦纳卡 — 已完全天黑 ❌</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:8px"><strong>问题：</strong>天黑后走 Crown Range Road 有黑冰和降雪风险，非常危险。</p>
+        <p style="margin-top:10px"><strong>方案A（推荐）：</strong>上午 Luge → 12:00 取车 → 12:30 箭镇午餐 → 14:30 品酒 → <span class="highlight">15:30 出发 → 17:00前天亮抵达瓦纳卡 ✅</span></p>
+        <p><strong>方案B：</strong>放弃 Gibbston 品酒，改为5月1日在瓦纳卡 Rippon 酒庄品酒（湖景更美）</p>
+      </div>
+
+      <div class="card warning">
+        <h3>3. 皇后镇 → 瓦纳卡路线选择 <span class="badge orange">需注意</span></h3>
+        <table>
+          <thead><tr><th>路线</th><th>时长</th><th>优点</th><th>冬季风险</th></tr></thead>
+          <tbody>
+            <tr><td class="bold">Crown Range Road</td><td>~1小时</td><td>快、风景好</td><td style="color:#c53030">海拔1121米，雪/冰/封路风险高</td></tr>
+            <tr><td class="bold">Kawarau Gorge (SH6)</td><td>~1.5小时</td><td>平坦、安全</td><td>峡谷段阳光少，早晚有黑冰</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:8px"><strong>建议：</strong>白天走 Crown Range，傍晚/天黑后必须走 Kawarau Gorge。租车时考虑四驱车+雪链。</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Section 2: 需要注意 -->
+    <div class="section">
+      <div class="section-title"><span class="icon">⚠️</span> 二、需要注意的问题</div>
+      
+      <div class="card warning">
+        <h3>4. 5月3日库克山行程时间紧张</h3>
+        <p>日照时间只有约 <strong>10小时（07:41–17:42）</strong>。行程可行但很紧：</p>
+        <table>
+          <thead><tr><th>时间</th><th>活动</th></tr></thead>
+          <tbody>
+            <tr><td>08:00</td><td>从特卡波出发</td></tr>
+            <tr><td>09:30</td><td>到达库克山村</td></tr>
+            <tr><td>09:45–12:45</td><td>Hooker Valley Track</td></tr>
+            <tr><td>13:00–13:30</td><td>午餐（选择很少！建议自带）</td></tr>
+            <tr><td>13:45–14:45</td><td>Tasman Glacier</td></tr>
+            <tr><td>15:00</td><td>返程</td></tr>
+            <tr><td>16:30</td><td>回到特卡波</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:8px">💡 库克山村餐饮极少，<strong>建议自带午餐或从特卡波打包</strong></p>
+      </div>
+
+      <div class="card info">
+        <h3>5. 5月2日特卡波安排提示</h3>
+        <ul>
+          <li>Lake Pukaki 的蓝绿色依赖天气和光照，5月阴天较多但有另一种苍茫之美</li>
+          <li><strong>星空观测极度依赖天气</strong>，建议提前预订 Tekapo Stargazing 专业观星团</li>
+          <li>冬季夜晚更长更黑，<span class="highlight">其实是观星的最佳季节</span> — 这是你的优势！</li>
+          <li>温泉建议选 <strong>晚间时段</strong>，可边泡温泉边看星空（hot pools + stargazing 套餐）</li>
+        </ul>
+      </div>
+
+      <div class="card warning">
+        <h3>6. 5月4日基督城行程 + 5月5日航班衔接</h3>
+        <ul>
+          <li>5月5日早上 6:00 起飞 → <strong>需要5月4日晚住奥克兰机场附近</strong></li>
+          <li>5月4日上午 08:00 出发 → 11:00 到基督城 → 下午飞奥克兰</li>
+          <li>基督城游览时间有限，建议只挑 1-2 个点快速打卡</li>
+          <li><strong>提前确认好基督城→奥克兰的航班并预订</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Section 3: 优化建议 -->
+    <div class="section">
+      <div class="section-title"><span class="icon">💡</span> 三、优化建议</div>
+      
+      <div class="card info">
+        <h3>7. 天气与装备</h3>
+        <p>5月南岛气温参考：</p>
+        <table class="temp-table">
+          <thead><tr><th>地区</th><th>日间温度</th><th>夜间温度</th></tr></thead>
+          <tbody>
+            <tr><td>皇后镇</td><td>4–10°C</td><td>-1–3°C</td></tr>
+            <tr><td>瓦纳卡</td><td>3–9°C</td><td>-2–2°C</td></tr>
+            <tr><td>特卡波</td><td>2–8°C</td><td>-4–0°C</td></tr>
+            <tr><td>库克山</td><td>0–6°C</td><td>-6– -1°C</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:12px"><strong>必备装备清单：</strong></p>
+        <div class="equipment-grid">
+          <div class="equipment-item">🧥 厚羽绒服/冲锋衣</div>
+          <div class="equipment-item">🌧️ 防水外套+防水裤</div>
+          <div class="equipment-item">🧤 手套、围巾、帽子</div>
+          <div class="equipment-item">👟 防水登山鞋</div>
+          <div class="equipment-item">🔦 头灯/手电</div>
+          <div class="equipment-item">🕶️ 太阳镜（紫外线强）</div>
+        </div>
+      </div>
+
+      <div class="card success">
+        <h3>8. 取车时间优化</h3>
+        <ul>
+          <li><strong>头天（4月29日晚）就取车</strong>，这样4月30日一早就有车</li>
+          <li>或者先玩 Luge → 11:00 取车 → 立即出发箭镇（比"中午用餐休整"更高效）</li>
+        </ul>
+      </div>
+
+      <div class="card success">
+        <h3>9. 住宿预订提醒</h3>
+        <ul>
+          <li><strong>瓦纳卡（2晚）：</strong>秋季是黄金季节（秋叶），好住宿抢手，建议早订</li>
+          <li><strong>特卡波（2晚）：</strong>小镇住宿有限，热门民宿很快满，尽早预订</li>
+          <li>库克山村住宿极贵且少，当天返回特卡波是明智的安排 ✅</li>
+        </ul>
+      </div>
+
+      <div class="card info">
+        <h3>10. 可选项目优先级建议</h3>
+        <table class="priority-row">
+          <thead><tr><th>优先级</th><th>项目</th><th>理由</th></tr></thead>
+          <tbody>
+            <tr><td>⭐⭐⭐</td><td>🚁 冰川直升机</td><td>弥补步道遗憾的最佳方式，冬季雪山更壮观</td></tr>
+            <tr><td>⭐⭐</td><td>♨️ Tekapo 温泉+星空</td><td>冬季体验感最好，边泡边看星空</td></tr>
+            <tr><td>⭐⭐</td><td>🍷 Rippon 酒庄</td><td>湖景+品酒，比 Gibbston 更有氛围感</td></tr>
+            <tr><td>⭐</td><td>🚤 Shotover Jet</td><td>时间富余再加，5月水温低体验一般</td></tr>
+            <tr><td>❓</td><td>🪂 跳伞</td><td>5月天气不稳定，取消概率高，建议放弃</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Section 4: 推荐行程 -->
+    <div class="section">
+      <div class="section-title"><span class="icon">📋</span> 四、修改后推荐行程</div>
+      
+      <div class="schedule-card">
+        <h4>📅 4月30日（周四）— Luge · 箭镇 · 瓦纳卡</h4>
+        <div class="schedule-item"><span class="schedule-time">08:30–10:30</span><span class="schedule-desc">Skyline 缆车 + Luge 🛷</span></div>
+        <div class="schedule-item"><span class="schedule-time">11:00</span><span class="schedule-desc">取车 🚗</span></div>
+        <div class="schedule-item"><span class="schedule-time">11:30–13:00</span><span class="schedule-desc">箭镇午餐 + 漫步小镇</span></div>
+        <div class="schedule-item"><span class="schedule-time">13:15–14:15</span><span class="schedule-desc">Gibbston Valley 品酒 🍷</span></div>
+        <div class="schedule-item"><span class="schedule-time" style="color:#38a169;font-weight:700">14:30</span><span class="schedule-desc" style="color:#38a169;font-weight:700">出发去瓦纳卡（走 Crown Range，白天安全）</span></div>
+        <div class="schedule-item"><span class="schedule-time" style="color:#38a169;font-weight:700">~15:45</span><span class="schedule-desc" style="color:#38a169;font-weight:700">天亮时抵达瓦纳卡 ✅</span></div>
+        <div class="schedule-item"><span class="schedule-time">傍晚</span><span class="schedule-desc">瓦纳卡湖边散步，欣赏日落 🌅</span></div>
+      </div>
+
+      <div class="schedule-card">
+        <h4>📅 5月1日（周五）— 瓦纳卡休闲日</h4>
+        <div class="schedule-item"><span class="schedule-time">早上</span><span class="schedule-desc">Wanaka Tree 孤独树 + 湖边漫步 🌅</span></div>
+        <div class="schedule-item"><span class="schedule-time">上午</span><span class="schedule-desc">Rippon 酒庄（湖景品酒）🍷</span></div>
+        <div class="schedule-item"><span class="schedule-time">下午</span><span class="schedule-desc">自由活动（小镇 café、Puzzling World 等）</span></div>
+      </div>
+
+      <div class="schedule-card">
+        <h4>📅 5月2日（周六）— 瓦纳卡 → 特卡波</h4>
+        <div class="schedule-item"><span class="schedule-time">上午</span><span class="schedule-desc">出发前往特卡波（约3小时）</span></div>
+        <div class="schedule-item"><span class="schedule-time">途中</span><span class="schedule-desc">必停 Lake Pukaki 💙（约30分钟）</span></div>
+        <div class="schedule-item"><span class="schedule-time">下午</span><span class="schedule-desc">入住 + 好牧羊人教堂</span></div>
+        <div class="schedule-item"><span class="schedule-time">晚间</span><span class="schedule-desc">Tekapo Springs 温泉 ♨️ + 星空观测 🌠</span></div>
+      </div>
+
+      <div class="schedule-card">
+        <h4>📅 5月3日（周日）— 库克山 ⭐⭐ 最重要</h4>
+        <div class="schedule-item"><span class="schedule-time">08:00</span><span class="schedule-desc">出发前往库克山村（1.5小时）</span></div>
+        <div class="schedule-item"><span class="schedule-time">09:45–12:45</span><span class="schedule-desc">Hooker Valley Track 🏔️（出发前查步道状态）</span></div>
+        <div class="schedule-item"><span class="schedule-time">13:00</span><span class="schedule-desc">午餐（建议自带！）</span></div>
+        <div class="schedule-item"><span class="schedule-time">13:45–14:45</span><span class="schedule-desc">Tasman Glacier 塔斯曼冰川</span></div>
+        <div class="schedule-item"><span class="schedule-time">15:00</span><span class="schedule-desc">返程 → 16:30 回到特卡波</span></div>
+      </div>
+
+      <div class="schedule-card">
+        <h4>📅 5月4日（周一）— 返程</h4>
+        <div class="schedule-item"><span class="schedule-time">08:00</span><span class="schedule-desc">出发前往基督城（约3小时）</span></div>
+        <div class="schedule-item"><span class="schedule-time">11:00</span><span class="schedule-desc">抵达基督城 🏙️ 快速游览</span></div>
+        <div class="schedule-item"><span class="schedule-time">下午</span><span class="schedule-desc">飞奥克兰 ✈️</span></div>
+        <div class="schedule-item"><span class="schedule-time">晚上</span><span class="schedule-desc">住奥克兰机场附近 🏨</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Section 5: 总结 -->
+    <div class="section">
+      <div class="section-title"><span class="icon">✅</span> 五、总结 — 核心改进点</div>
+      <div class="summary-table">
+        <table>
+          <thead>
+            <tr><th>#</th><th>问题</th><th>严重程度</th><th>建议</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>Hooker Valley 步道可能未全面开放</td><td><span class="badge red">🔴 高</span></td><td>持续跟踪 + 准备 Plan B</td></tr>
+            <tr><td>2</td><td>4月30日行程太赶，天黑后开山路</td><td><span class="badge red">🔴 高</span></td><td>提前出发，白天到瓦纳卡</td></tr>
+            <tr><td>3</td><td>Crown Range 冬季风险</td><td><span class="badge orange">🟡 中</span></td><td>白天走 / 选 Kawarau Gorge</td></tr>
+            <tr><td>4</td><td>库克山村午餐难解决</td><td><span class="badge orange">🟡 中</span></td><td>自带食物</td></tr>
+            <tr><td>5</td><td>5月5日航班衔接</td><td><span class="badge orange">🟡 中</span></td><td>确认机票 + 奥克兰住宿</td></tr>
+            <tr><td>6</td><td>跳伞取消率高</td><td><span class="badge green">🟢 低</span></td><td>建议放弃或转为冰川直升机</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    整体而言这是一份非常棒的行程规划！路线合理、节奏有张有弛。<br>
+    主要风险集中在冬季天气和步道状态上，提前做好应对方案就好。祝旅途愉快！🏔️✨
+  </div>
+
+</div>
+</body>
+</html>
