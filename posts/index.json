@@ -59,6 +59,20 @@
     "readingTime": 24
   },
   {
+    "slug": "consistent-hashing-redis-slot-mysql-presharding",
+    "title": "一致性哈希、Redis slot 与 MySQL 预分片",
+    "date": "2026-05-11",
+    "tags": [
+      "后端",
+      "分布式",
+      "Redis",
+      "MySQL",
+      "Go"
+    ],
+    "summary": "从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个固定 slot，拓展到 MySQL 预分片——用远超物理节点数的逻辑分片对抗持久化数据的迁移成本。",
+    "readingTime": 12
+  },
+  {
     "slug": "mira-secure-data-flow",
     "title": "Mira 安全数据流：一次加密上链的拆解",
     "date": "2026-05-10",
