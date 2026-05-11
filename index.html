@@ -154,6 +154,61 @@
     color: var(--fg-muted); padding: 40px 0; text-align: center;
   }
 
+  /* Skills Hub */
+  .page-head {
+    margin-bottom: 20px;
+  }
+  .page-head h1 {
+    margin: 0 0 4px; font-size: 22px; font-weight: 700;
+  }
+  .page-head p {
+    margin: 0; color: var(--fg-muted); font-size: 13px;
+  }
+  .skill-list { list-style: none; padding: 0; margin: 0; }
+  .skill-item {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 18px 0; border-bottom: 1px solid var(--border);
+  }
+  .skill-body { flex: 1; min-width: 0; }
+  .skill-body h2 {
+    margin: 0 0 4px; font-size: 16px; font-weight: 600;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .skill-body h2 .ver {
+    font-size: 11px; color: var(--fg-muted); font-weight: 400;
+  }
+  .skill-body .summary {
+    margin: 0 0 6px; color: var(--fg-soft); font-size: 14px; line-height: 1.6;
+  }
+  .skill-body .meta {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    font-size: 12px; color: var(--fg-muted); margin-top: 4px;
+  }
+  .skill-body .meta .post-tag { font-size: 11px; }
+  .skill-triggers {
+    margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);
+  }
+  .skill-triggers code {
+    background: var(--code-bg); padding: 1px 6px; border-radius: 3px;
+    font-size: 11.5px;
+  }
+  .skill-dl {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; font-size: 13px;
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; text-decoration: none;
+    transition: color .15s, border-color .15s;
+  }
+  .skill-dl:hover {
+    color: var(--link); border-color: var(--link);
+    text-decoration: none;
+  }
+  .skill-dl .size {
+    font-size: 11px; color: var(--fg-muted);
+  }
+
   /* 详情页 */
   .article-head {
     margin-bottom: 24px;
@@ -266,6 +321,7 @@
     <h1><a href="#/">Wendell's Zone</a></h1>
     <nav>
       <a href="#/">首页</a>
+      <a href="#/skills">Skills</a>
       <a href="#/about">关于</a>
       <a href="live-preview/#md" title="Markdown / JSON / PlantUML 实时预览小工具">🔧 小工具</a>
       <a href="https://github.com/wendellzone" target="_blank" rel="noopener">GitHub</a>
@@ -419,12 +475,28 @@ async function loadPost(slug) {
   return resp.text();
 }
 
+let SKILLS = null;
+async function loadSkills() {
+  if (SKILLS) return SKILLS;
+  const resp = await fetch('skills/index.json');
+  if (!resp.ok) throw new Error('无法加载 skills 索引：' + resp.status);
+  SKILLS = await resp.json();
+  return SKILLS;
+}
+
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+
 function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
   const isReading = /^\/post\/|^\/about$/.test(hash);
   app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
   if (hash === '/about')           return renderAbout();
+  if (hash === '/skills')          return renderSkillsList();
   const m = /^\/post\/([\w\-]+)/.exec(hash);
   if (m) return renderPost(m[1]);
   renderNotFound();
@@ -538,8 +610,48 @@ async function renderPost(slug) {
 }
 
 /* ========================================================
-   关于页 / 404
+   关于页 / 404 / Skills Hub
 ======================================================== */
+async function renderSkillsList() {
+  document.title = 'Skills · Wendell\'s Zone';
+  app.innerHTML = `<div class="loading">加载中…</div>`;
+  try {
+    const skills = await loadSkills();
+    if (!skills.length) {
+      app.innerHTML = `
+        <div class="page-head"><h1>Skills</h1></div>
+        <div class="empty">暂无 skills</div>`;
+      return;
+    }
+    app.innerHTML = `
+      <div class="page-head">
+        <h1>Skills</h1>
+        <p>可下载的 WorkBuddy skills。zip 解压到 <code>~/.workbuddy/skills/</code> 即可使用。</p>
+      </div>
+      <ul class="skill-list">
+        ${skills.map(s => `
+          <li class="skill-item">
+            <div class="skill-body">
+              <h2>${escapeHtml(s.name)} <span class="ver">v${escapeHtml(s.version || '1.0.0')}</span></h2>
+              <p class="summary">${escapeHtml(s.summary || '')}</p>
+              ${s.triggers && s.triggers.length
+                ? `<div class="skill-triggers">触发词：${s.triggers.map(t => `<code>${escapeHtml(t)}</code>`).join(' ')}</div>`
+                : ''}
+              <div class="meta">
+                ${(s.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join('')}
+              </div>
+            </div>
+            <a class="skill-dl" href="skills/${encodeURIComponent(s.file)}" download>
+              ⬇ 下载 <span class="size">${fmtSize(s.size || 0)}</span>
+            </a>
+          </li>`).join('')}
+      </ul>
+    `;
+  } catch (e) {
+    app.innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
 function renderAbout() {
   document.title = '关于 · Wendell\'s Zone';
   app.innerHTML = `

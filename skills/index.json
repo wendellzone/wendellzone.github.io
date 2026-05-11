@@ -1,0 +1,13 @@
+[
+  {
+    "slug": "blog-post",
+    "name": "blog-post",
+    "version": "1.0.0",
+    "summary": "把 wendellzone.github.io 的发文、改文、删文、阅读时间同步封装成一条命令。",
+    "tags": ["博客", "自动化", "Python"],
+    "triggers": ["发一篇博客", "改博客文章", "删博客文章", "列出博客文章"],
+    "size": 11112,
+    "file": "blog-post.zip",
+    "install": "WorkBuddy: 解压到 ~/.workbuddy/skills/ 即可；或导入 zip"
+  }
+]
