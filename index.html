@@ -429,8 +429,18 @@ async function hydratePlantUML(root) {
 }
 
 /* ========================================================
-   Markdown 渲染（带 PlantUML 占位 + 代码高亮）
+   Markdown 渲染（带 PlantUML 占位 + 代码高亮 + 标题 id）
 ======================================================== */
+const _slugCount = {};
+function slugify(text) {
+  const s = String(text).toLowerCase()
+    .replace(/[\s\u00A0]+/g, '-')
+    .replace(/[^\w\u4e00-\u9fa5-]/g, '')
+    .slice(0, 80) || 'h';
+  _slugCount[s] = (_slugCount[s] || 0) + 1;
+  return _slugCount[s] === 1 ? s : `${s}-${_slugCount[s]}`;
+}
+
 function buildRenderer() {
   const r = new marked.Renderer();
   r.code = function(code, lang) {
@@ -448,11 +458,40 @@ function buildRenderer() {
     } catch { html = code; }
     return `<pre><code class="hljs language-${lang||''}">${html}</code></pre>`;
   };
+  r.heading = function(text, level) {
+    let raw = text, html = text;
+    if (typeof text === 'object' && text !== null) {
+      raw = text.text || ''; level = text.depth;
+      try { html = this.parser ? this.parser.parseInline(text.tokens || []) : raw; } catch { html = raw; }
+    }
+    const id = slugify(String(raw).replace(/<[^>]+>/g, ''));
+    return `<h${level} id="${id}">${html}</h${level}>`;
+  };
   return r;
 }
 function renderMarkdown(md) {
+  for (const k in _slugCount) delete _slugCount[k];
   marked.setOptions({ gfm: true, breaks: false, renderer: buildRenderer() });
-  return DOMPurify.sanitize(marked.parse(md || ''), { ADD_ATTR: ['data-code'] });
+  return DOMPurify.sanitize(marked.parse(md || ''), { ADD_ATTR: ['data-code', 'id'] });
+}
+
+/* 拦截文章内 TOC 锚点：href=#xxx 走平滑滚动，不让 SPA 路由把它当成新路径 */
+function bindArticleAnchors(root) {
+  root.querySelectorAll('a[href^="#"]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    // 以 #/ 开头的是 SPA 路由，放行
+    if (href.startsWith('#/')) return;
+    a.addEventListener('click', (e) => {
+      const id = decodeURIComponent(href.slice(1));
+      if (!id) return;
+      const target = root.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 不改 location.hash，避免 hashchange 触发 router
+      }
+    });
+  });
 }
 
 /* ========================================================
@@ -492,6 +531,8 @@ function fmtSize(n) {
 
 function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
+  // 非 SPA 路由（例如文章内锚点 #some-heading），忽略，不切视图
+  if (hash !== '/' && !hash.startsWith('/')) return;
   const isReading = /^\/post\/|^\/about$/.test(hash);
   app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
@@ -601,6 +642,7 @@ async function renderPost(slug) {
     `;
     document.title = (meta?.title || slug) + ' · Wendell\'s Zone';
     hydratePlantUML(document.getElementById('article'));
+    bindArticleAnchors(document.getElementById('article'));
     window.scrollTo(0, 0);
   } catch (e) {
     app.innerHTML = `
