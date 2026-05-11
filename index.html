@@ -536,7 +536,7 @@ function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
   // 非 SPA 路由（例如文章内锚点 #some-heading），忽略，不切视图
   if (hash !== '/' && !hash.startsWith('/')) return;
-  const isReading = /^\/post\/|^\/about$|^\/skill\//.test(hash);
+  const isReading = /^\/post\/|^\/about$/.test(hash);
   app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
   if (hash === '/about')           return renderAbout();
