@@ -174,6 +174,8 @@
     margin: 0 0 4px; font-size: 16px; font-weight: 600;
     display: flex; align-items: baseline; gap: 8px;
   }
+  .skill-body h2 a { color: var(--fg); }
+  .skill-body h2 a:hover { color: var(--link); text-decoration: none; }
   .skill-body h2 .ver {
     font-size: 11px; color: var(--fg-muted); font-weight: 400;
   }
@@ -184,30 +186,31 @@
     display: flex; gap: 8px; flex-wrap: wrap;
     font-size: 12px; color: var(--fg-muted); margin-top: 4px;
   }
-  .skill-body .meta .post-tag { font-size: 11px; }
-  .skill-triggers {
-    margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);
-  }
-  .skill-triggers code {
-    background: var(--code-bg); padding: 1px 6px; border-radius: 3px;
-    font-size: 11.5px;
-  }
-  .skill-dl {
+  .skill-actions {
     flex-shrink: 0;
-    display: inline-flex; align-items: center; gap: 6px;
+    display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  }
+  .skill-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     padding: 6px 14px; font-size: 13px;
     background: var(--panel); color: var(--fg);
     border: 1px solid var(--border); border-radius: 6px;
     cursor: pointer; text-decoration: none;
     transition: color .15s, border-color .15s;
+    white-space: nowrap;
   }
-  .skill-dl:hover {
+  .skill-btn:hover {
     color: var(--link); border-color: var(--link);
     text-decoration: none;
   }
-  .skill-dl .size {
+  .skill-btn .size {
     font-size: 11px; color: var(--fg-muted);
   }
+  .skill-btn.primary {
+    background: var(--link); color: #fff; border-color: var(--link);
+  }
+  .skill-btn.primary:hover { color: #fff; opacity: .9; }
+  .skill-btn.primary .size { color: rgba(255,255,255,.75); }
 
   /* 详情页 */
   .article-head {
@@ -533,11 +536,13 @@ function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
   // 非 SPA 路由（例如文章内锚点 #some-heading），忽略，不切视图
   if (hash !== '/' && !hash.startsWith('/')) return;
-  const isReading = /^\/post\/|^\/about$/.test(hash);
+  const isReading = /^\/post\/|^\/about$|^\/skill\//.test(hash);
   app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
   if (hash === '/about')           return renderAbout();
   if (hash === '/skills')          return renderSkillsList();
+  const sm = /^\/skill\/([\w\-]+)/.exec(hash);
+  if (sm) return renderSkillDetail(sm[1]);
   const m = /^\/post\/([\w\-]+)/.exec(hash);
   if (m) return renderPost(m[1]);
   renderNotFound();
@@ -668,29 +673,66 @@ async function renderSkillsList() {
     app.innerHTML = `
       <div class="page-head">
         <h1>Skills</h1>
-        <p>可下载的 WorkBuddy skills。zip 解压到 <code>~/.workbuddy/skills/</code> 即可使用。</p>
+        <p>可下载的 WorkBuddy skills。点击进入查看详情，再决定是否下载。</p>
       </div>
       <ul class="skill-list">
         ${skills.map(s => `
           <li class="skill-item">
             <div class="skill-body">
-              <h2>${escapeHtml(s.name)} <span class="ver">v${escapeHtml(s.version || '1.0.0')}</span></h2>
+              <h2><a href="#/skill/${encodeURIComponent(s.slug)}">${escapeHtml(s.name)}</a> <span class="ver">v${escapeHtml(s.version || '1.0.0')}</span></h2>
               <p class="summary">${escapeHtml(s.summary || '')}</p>
-              ${s.triggers && s.triggers.length
-                ? `<div class="skill-triggers">触发词：${s.triggers.map(t => `<code>${escapeHtml(t)}</code>`).join(' ')}</div>`
-                : ''}
               <div class="meta">
                 ${(s.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join('')}
               </div>
             </div>
-            <a class="skill-dl" href="skills/${encodeURIComponent(s.file)}" download>
-              ⬇ 下载 <span class="size">${fmtSize(s.size || 0)}</span>
-            </a>
+            <div class="skill-actions">
+              <a class="skill-btn" href="#/skill/${encodeURIComponent(s.slug)}">查看详情</a>
+            </div>
           </li>`).join('')}
       </ul>
     `;
   } catch (e) {
     app.innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function renderSkillDetail(slug) {
+  app.innerHTML = `<div class="loading">加载中…</div>`;
+  try {
+    const skills = await loadSkills();
+    const meta = skills.find(s => s.slug === slug);
+    if (!meta) throw new Error('skill 未找到');
+    const resp = await fetch(`skills/${slug}/SKILL.md`);
+    if (!resp.ok) throw new Error('SKILL.md 加载失败：' + resp.status);
+    const raw = await resp.text();
+    const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '');
+
+    document.title = meta.name + ' · Skills · Wendell\'s Zone';
+    app.innerHTML = `
+      <a class="back-link" href="#/skills">← 返回 Skills</a>
+      <div class="article-head">
+        <h1>${escapeHtml(meta.name)} <span class="ver" style="font-size:13px;color:var(--fg-muted);font-weight:400">v${escapeHtml(meta.version || '1.0.0')}</span></h1>
+        <p class="summary" style="margin:6px 0 10px;color:var(--fg-soft)">${escapeHtml(meta.summary || '')}</p>
+        <div class="post-meta">
+          ${(meta.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join('')}
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <a class="skill-btn primary" href="skills/${encodeURIComponent(meta.file)}" download>
+            ⬇ 下载 zip <span class="size">${fmtSize(meta.size || 0)}</span>
+          </a>
+          ${meta.triggers && meta.triggers.length
+            ? `<span style="font-size:12px;color:var(--fg-muted)">触发词：${meta.triggers.map(t => `<code style="background:var(--code-bg);padding:1px 6px;border-radius:3px;font-size:11.5px">${escapeHtml(t)}</code>`).join(' ')}</span>`
+            : ''}
+        </div>
+      </div>
+      <article class="markdown" id="article">${renderMarkdown(body)}</article>
+    `;
+    bindArticleAnchors(document.getElementById('article'));
+    window.scrollTo(0, 0);
+  } catch (e) {
+    app.innerHTML = `
+      <a class="back-link" href="#/skills">← 返回 Skills</a>
+      <div class="empty">加载失败：${escapeHtml(e.message)}</div>`;
   }
 }
 
