@@ -6,11 +6,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="description" content="Wendell 的技术博客 —— 后端、隐私计算、系统设计与日常思考。" />
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" id="hljs-light">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" id="hljs-dark" disabled>
 <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
+<!-- 主题脚本：防 FOUC，必须在 <style> 之前运行 -->
+<script>
+(function() {
+  try {
+    var saved = localStorage.getItem('lp_theme');
+    var prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var theme = saved || (prefers ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) {}
+})();
+</script>
 
 <style>
   :root {
@@ -23,7 +36,22 @@
     --tag-bg: #eef4ff;
     --tag-fg: #0550ae;
     --code-bg: #f6f8fa;
+    --panel: #ffffff;
+    --panel-hover: #f6f8fa;
     --max-width: 780px;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1117;
+    --fg: #e6edf3;
+    --fg-muted: #7d8590;
+    --fg-soft: #9ca3af;
+    --border: #21262d;
+    --link: #58a6ff;
+    --tag-bg: #1f2a3a;
+    --tag-fg: #79c0ff;
+    --code-bg: #161b22;
+    --panel: #161b22;
+    --panel-hover: #1c2128;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -40,7 +68,7 @@
   /* 顶栏 */
   header.site {
     border-bottom: 1px solid var(--border);
-    background: #fff;
+    background: var(--panel);
   }
   header.site .inner {
     max-width: var(--max-width);
@@ -53,8 +81,18 @@
     letter-spacing: .3px;
   }
   header.site h1 a { color: var(--fg); }
-  header.site nav { margin-left: auto; display: flex; gap: 16px; }
+  header.site nav { margin-left: auto; display: flex; gap: 16px; align-items: center; }
   header.site nav a { color: var(--fg-soft); font-size: 14px; }
+  .theme-toggle {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--fg-soft); width: 30px; height: 30px;
+    border-radius: 50%; cursor: pointer; font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .theme-toggle:hover { color: var(--link); border-color: var(--link); }
+  :root[data-theme="dark"] .theme-toggle .moon { display: none; }
+  :root:not([data-theme="dark"]) .theme-toggle .sun { display: none; }
 
   main {
     max-width: var(--max-width);
@@ -96,7 +134,7 @@
     flex: 1; min-width: 200px;
     padding: 8px 12px; font-size: 14px;
     border: 1px solid var(--border); border-radius: 6px;
-    background: #fff;
+    background: var(--panel); color: var(--fg);
   }
   .filter-bar input:focus { outline: none; border-color: var(--link); }
   .tag-cloud { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -166,11 +204,12 @@
   /* PlantUML 块 */
   .plantuml-block {
     margin: 14px 0; padding: 12px;
-    background: #fff; border: 1px solid var(--border);
+    background: var(--panel); border: 1px solid var(--border);
     border-radius: 6px; text-align: center;
     min-height: 60px;
   }
   .plantuml-block svg { max-width: 100%; height: auto; }
+  :root[data-theme="dark"] .plantuml-block svg { background: #fafafa; border-radius: 4px; padding: 8px; }
   .plantuml-ph { color: var(--fg-muted); font-size: 12px; padding: 20px; }
   .plantuml-err {
     color: #cf222e; padding: 10px 14px; font-size: 12px;
@@ -197,7 +236,7 @@
   .back-to-top {
     position: fixed; right: 24px; bottom: 32px;
     width: 40px; height: 40px;
-    background: #fff; color: var(--fg-soft);
+    background: var(--panel); color: var(--fg-soft);
     border: 1px solid var(--border); border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; font-size: 16px; line-height: 1;
@@ -224,7 +263,11 @@
     <nav>
       <a href="#/">首页</a>
       <a href="#/about">关于</a>
+      <a href="live-preview/#md" title="Markdown / JSON / PlantUML 实时预览小工具">🔧 小工具</a>
       <a href="https://github.com/wendellzone" target="_blank" rel="noopener">GitHub</a>
+      <button class="theme-toggle" id="theme-toggle" title="切换主题" aria-label="切换主题">
+        <span class="sun">☀️</span><span class="moon">🌙</span>
+      </button>
     </nav>
   </div>
 </header>
@@ -512,6 +555,33 @@ function renderNotFound() {
     <a class="back-link" href="#/">← 返回列表</a>
     <div class="empty">页面未找到</div>`;
 }
+
+/* ========================================================
+   主题切换
+======================================================== */
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const light = document.getElementById('hljs-light');
+  const dark  = document.getElementById('hljs-dark');
+  if (light && dark) {
+    light.disabled = theme === 'dark';
+    dark.disabled  = theme !== 'dark';
+  }
+}
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'light';
+}
+// 初始同步一下 hljs 样式表的 disabled 状态（防 FOUC 脚本只改了 data-theme）
+applyTheme(currentTheme());
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('lp_theme', next);
+  applyTheme(next);
+});
+// 跨标签页同步（例如你在 live-preview 里切换了主题）
+window.addEventListener('storage', (e) => {
+  if (e.key === 'lp_theme' && e.newValue) applyTheme(e.newValue);
+});
 
 /* ========================================================
    返回顶部
