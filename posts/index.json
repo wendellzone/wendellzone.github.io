@@ -34,6 +34,18 @@
     "readingTime": 1
   },
   {
+    "slug": "portfolio-15pct-annual",
+    "title": "一份目标年化 15% 的参考持仓",
+    "date": "2026-05-11",
+    "tags": [
+      "投资",
+      "资产配置",
+      "复盘"
+    ],
+    "summary": "40% 纳指 + 25% 科技 + 15% 标普 + 10% 小盘 + 10% 现金黄金，以及配这套仓位的理由",
+    "readingTime": 4
+  },
+  {
     "slug": "mira-secure-data-flow",
     "title": "Mira 安全数据流：一次加密上链的拆解",
     "date": "2026-05-10",
