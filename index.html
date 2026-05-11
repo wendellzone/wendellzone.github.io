@@ -104,6 +104,50 @@
     max-width: var(--reading-width);
   }
 
+  /* 文章右侧时间轴目录 */
+  .toc {
+    position: fixed;
+    top: 110px;
+    right: max(20px, calc((100vw - 760px) / 2 - 240px));
+    width: 200px;
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    padding: 4px 0 4px 14px;
+    border-left: 1px solid var(--border);
+    z-index: 10;
+  }
+  .toc-title {
+    font-size: 11px; color: var(--fg-muted); font-weight: 600;
+    letter-spacing: .5px; text-transform: uppercase;
+    margin-bottom: 8px; margin-left: -2px;
+  }
+  .toc ol { list-style: none; padding: 0; margin: 0; }
+  .toc li { position: relative; margin: 0; }
+  .toc li > a {
+    display: block;
+    padding: 5px 4px 5px 14px;
+    color: var(--fg-muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    margin-left: -16px;
+    transition: color .15s, border-color .15s;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .toc li > a:hover { color: var(--fg); text-decoration: none; }
+  .toc li.active > a {
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 600;
+  }
+  .toc li.h3 > a {
+    padding-left: 28px;
+    font-size: 12px;
+  }
+  .toc::-webkit-scrollbar { width: 0; }
+  @media (max-width: 1100px) { .toc { display: none; } }
+
   /* 列表页 */
   .post-list { list-style: none; padding: 0; margin: 0; }
   .post-item {
@@ -498,6 +542,65 @@ function bindArticleAnchors(root) {
 }
 
 /* ========================================================
+   文章右侧时间轴 TOC
+======================================================== */
+let _tocScrollHandler = null;
+
+function destroyToc() {
+  const old = document.getElementById('toc');
+  if (old) old.remove();
+  if (_tocScrollHandler) {
+    window.removeEventListener('scroll', _tocScrollHandler);
+    _tocScrollHandler = null;
+  }
+}
+
+function buildToc(articleEl) {
+  destroyToc();
+  const headings = [...articleEl.querySelectorAll('h2[id], h3[id]')];
+  if (headings.length < 2) return;
+
+  const toc = document.createElement('nav');
+  toc.id = 'toc';
+  toc.className = 'toc';
+  toc.innerHTML = `
+    <div class="toc-title">目录</div>
+    <ol>
+      ${headings.map(h => `
+        <li class="${h.tagName.toLowerCase()}" data-id="${h.id}">
+          <a href="#${encodeURIComponent(h.id)}">${escapeHtml(h.textContent.replace(/^\s*\d+\.\s*/, ''))}</a>
+        </li>`).join('')}
+    </ol>
+  `;
+  document.body.appendChild(toc);
+
+  // 点击平滑滚动
+  toc.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = decodeURIComponent(a.getAttribute('href').slice(1));
+      const t = articleEl.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // scrollspy
+  const items = [...toc.querySelectorAll('li')];
+  const onScroll = () => {
+    const top = window.scrollY + 120;
+    let active = headings[0];
+    for (const h of headings) {
+      if (h.offsetTop <= top) active = h;
+      else break;
+    }
+    items.forEach(li => li.classList.toggle('active', li.dataset.id === active.id));
+  };
+  _tocScrollHandler = onScroll;
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
+/* ========================================================
    路由 + 数据加载
 ======================================================== */
 let INDEX = null;   // posts/index.json
@@ -523,6 +626,11 @@ async function loadSkills() {
   const resp = await fetch('skills/index.json');
   if (!resp.ok) throw new Error('无法加载 skills 索引：' + resp.status);
   SKILLS = await resp.json();
+  // 默认按 createdAt 倒序，没该字段则按 name 字典序
+  SKILLS.sort((a, b) => {
+    if (a.createdAt || b.createdAt) return (b.createdAt || '').localeCompare(a.createdAt || '');
+    return (a.name || '').localeCompare(b.name || '');
+  });
   return SKILLS;
 }
 
@@ -536,6 +644,7 @@ function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
   // 非 SPA 路由（例如文章内锚点 #some-heading），忽略，不切视图
   if (hash !== '/' && !hash.startsWith('/')) return;
+  destroyToc();
   const isReading = /^\/post\/|^\/about$/.test(hash);
   app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
@@ -648,6 +757,7 @@ async function renderPost(slug) {
     document.title = (meta?.title || slug) + ' · Wendell\'s Zone';
     hydratePlantUML(document.getElementById('article'));
     bindArticleAnchors(document.getElementById('article'));
+    buildToc(document.getElementById('article'));
     window.scrollTo(0, 0);
   } catch (e) {
     app.innerHTML = `
@@ -728,6 +838,7 @@ async function renderSkillDetail(slug) {
       <article class="markdown" id="article">${renderMarkdown(body)}</article>
     `;
     bindArticleAnchors(document.getElementById('article'));
+    buildToc(document.getElementById('article'));
     window.scrollTo(0, 0);
   } catch (e) {
     app.innerHTML = `
