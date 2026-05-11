@@ -73,6 +73,17 @@
     "readingTime": 12
   },
   {
+    "slug": "golang-channel-quickstart",
+    "title": "Golang Channel 速通：图压过字",
+    "date": "2026-05-11",
+    "tags": [
+      "Go",
+      "后端"
+    ],
+    "summary": "用菜市场传菜窗口类比 + 操作矩阵 + 状态机图，把 channel 一次讲透",
+    "readingTime": 2
+  },
+  {
     "slug": "mira-secure-data-flow",
     "title": "Mira 安全数据流：一次加密上链的拆解",
     "date": "2026-05-10",
