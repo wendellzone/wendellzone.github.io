@@ -5,6 +5,7 @@ tags: [后端, 分布式, Redis, MySQL, Go]
 summary: 从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个固定 slot，拓展到 MySQL 预分片——用远超物理节点数的逻辑分片对抗持久化数据的迁移成本。
 ---
 
+
 后端做数据分片，几乎一定会碰到三个词：**一致性哈希**、**Redis slot**、**MySQL 预分片**。它们看起来各是各的，其实底层思路一脉相承——都是在"key 到物理节点"之间塞一个稳定的中间层，让物理扩缩容不再牵连全量数据。
 
 这篇博客把三件事串起来讲清楚。
@@ -317,6 +318,53 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
 2. **路由层维护映射表**：`db_xxxx → 物理实例 IP`。扩容就是搬库 + 改映射表 + 切流量，业务代码不动。
 3. **分库分表两层**：对大表（订单、消息）在 db 内再切 N 张表。常见配置：**32 库 × 32 表 = 1024 个物理表**，或 **1024 库 × 8 表**。
 
+### 预分片省的是什么：迁移数据量
+
+预分片的所有收益，都收敛到一件事——**最小化迁移数据量**。看一组直观的数字（2 台扩到 4 台）：
+
+<svg viewBox="0 0 680 280" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">2 台 → 4 台扩容时的迁移量对比</text>
+
+  <g>
+    <text x="40" y="70" font-family="sans-serif" font-size="12" font-weight="500" fill="#A32D2D">hash(key) % N</text>
+    <text x="180" y="70" font-family="sans-serif" font-size="11" fill="#666">~50% 数据要重算 hash 后逐行搬</text>
+    <rect x="40" y="80" width="600" height="20" rx="4" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+    <rect x="40" y="80" width="300" height="20" rx="4" fill="#E24B4A"/>
+    <text x="190" y="94" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">迁移 50%</text>
+  </g>
+
+  <g>
+    <text x="40" y="135" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">一致性哈希 (虚拟节点)</text>
+    <text x="220" y="135" font-family="sans-serif" font-size="11" fill="#666">加 1 台迁 1/N；翻倍仍约 50%，但分散在多段</text>
+    <rect x="40" y="145" width="600" height="20" rx="4" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <rect x="40" y="145" width="300" height="20" rx="4" fill="#EF9F27"/>
+    <text x="190" y="159" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">迁移 ~50%（粒度更细）</text>
+  </g>
+
+  <g>
+    <text x="40" y="200" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">预分片（1024 逻辑库）</text>
+    <text x="200" y="200" font-family="sans-serif" font-size="11" fill="#666">搬整库文件，不重算 hash，可用物理拷贝</text>
+    <rect x="40" y="210" width="600" height="20" rx="4" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <rect x="40" y="210" width="300" height="20" rx="4" fill="#1D9E75"/>
+    <text x="190" y="224" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">迁移 50%（但是文件级整库搬）</text>
+  </g>
+
+  <text x="340" y="260" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">关键差别在"怎么搬"，不在"搬多少"——预分片让搬迁从逐行变文件级</text>
+</svg>
+
+三种方案在"翻倍扩容"场景下要动的数据**比例都差不多**，但代价完全不同：
+
+| 方案 | 搬运方式 | 路由变化 | 业务代码 |
+|---|---|---|---|
+| `hash % N` | 逐行重算 hash 跨网络写 | 算法变（N 变） | 必须重发 |
+| 一致性哈希 | 客户端按环段拉取 | 环结构更新 | 客户端版本要同步 |
+| **预分片** | **整库 dump/物理拷贝** | **只改 slot→实例映射** | **不动** |
+
+预分片真正省下的是：
+- **运维成本**：xtrabackup 物理拷贝快 10 倍以上，DTS / binlog 增量同步成熟工具链；
+- **风险**：路由算法不变 = 应用零改动 = 灰度回滚简单；
+- **业务连续性**：扩容期间只有"被搬走的那部分库"短暂锁写，其它库不受影响。
+
 ### 业界参考值
 
 | 系统 | 逻辑分片数 | 备注 |
@@ -327,26 +375,149 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
 | MongoDB sharded cluster | 默认 chunk 128MB | chunk 自动分裂和迁移 |
 | TiDB | Region | 默认 96MB，自动切分 |
 
-### Go 路由片段
+### Go 实现：从基础到生产
+
+**① 最简版：纯 hash 路由（1024 库）**
 
 ```go
+package sharding
+
+import (
+	"database/sql"
+	"fmt"
+	"hash/crc32"
+)
+
+const ShardCount = 1024 // 必须是 2 的幂
+
 type Router struct {
-	// slot -> 物理实例的映射表，热更新时换引用即可
-	slotToInstance [1024]*sql.DB
+	slotToDB [ShardCount]*sql.DB
 }
 
-func (r *Router) Pick(shardingKey string) *sql.DB {
-	slot := crc32.ChecksumIEEE([]byte(shardingKey)) & 1023 // % 1024
-	return r.slotToInstance[slot]
+func shardID(key string) uint32 {
+	return crc32.ChecksumIEEE([]byte(key)) & (ShardCount - 1) // & 1023 等价 % 1024
 }
 
-// 分库分表：1024 库 × 8 表
-func (r *Router) Locate(shardingKey, logicalTable string) (string, *sql.DB) {
-	h := crc32.ChecksumIEEE([]byte(shardingKey))
-	dbIdx := h & 1023
-	tbIdx := (h >> 10) & 7
-	name := fmt.Sprintf("db_%04d.%s_%d", dbIdx, logicalTable, tbIdx)
-	return name, r.slotToInstance[dbIdx]
+func (r *Router) DB(key string) *sql.DB { return r.slotToDB[shardID(key)] }
+func (r *Router) DBName(key string) string {
+	return fmt.Sprintf("db_%04d", shardID(key))
+}
+```
+
+**② 分库 + 分表（1024 库 × 8 表）**
+
+订单、消息这类大表再切一层。低 10 位选库、接下来 3 位选表，互不干扰。
+
+```go
+func (r *Router) Locate(key, logicalTable string) (dbName, tableName string, db *sql.DB) {
+	h := crc32.ChecksumIEEE([]byte(key))
+	dbIdx := h & 1023        // 低 10 位
+	tbIdx := (h >> 10) & 7   // 接下来 3 位
+	dbName = fmt.Sprintf("db_%04d", dbIdx)
+	tableName = fmt.Sprintf("%s_%d", logicalTable, tbIdx)
+	db = r.slotToDB[dbIdx]
+	return
+}
+```
+
+要点：**分片键只用一个**（如 `user_id`），保证同一实体的数据落到同一个 db+table，避免跨库 join 和分布式事务。
+
+**③ 热更新路由表（扩容关键）**
+
+扩容不能重启服务，映射表必须能原子替换。Go 1.19+ 用 `atomic.Pointer`：
+
+```go
+import "sync/atomic"
+
+type shardMap struct {
+	slotToDB [1024]*sql.DB
+	version  int64
+}
+
+type LiveRouter struct {
+	current atomic.Pointer[shardMap]
+}
+
+func (r *LiveRouter) Update(m *shardMap) { r.current.Store(m) }
+
+func (r *LiveRouter) DB(key string) *sql.DB {
+	slot := crc32.ChecksumIEEE([]byte(key)) & 1023
+	return r.current.Load().slotToDB[slot]
+}
+```
+
+扩容时：新实例追同步 → 构造新 `shardMap`（一半 slot 指新机器）→ `Update(newMap)` → 老连接逐步释放。**业务代码一行不改。**
+
+**④ 从 yaml 加载映射**
+
+生产里映射一般在 etcd / Nacos / apollo，最小可用版本是一份 yaml：
+
+```yaml
+instances:
+  mysql-1: "user:pwd@tcp(10.0.0.1:3306)/"
+  mysql-2: "user:pwd@tcp(10.0.0.2:3306)/"
+ranges:
+  - { instance: mysql-1, slots: [0, 511] }
+  - { instance: mysql-2, slots: [512, 1023] }
+```
+
+```go
+type Config struct {
+	Instances map[string]string `yaml:"instances"`
+	Ranges    []struct {
+		Instance string `yaml:"instance"`
+		Slots    [2]int `yaml:"slots"`
+	} `yaml:"ranges"`
+}
+
+func BuildShardMap(cfg *Config) (*shardMap, error) {
+	pool := make(map[string]*sql.DB, len(cfg.Instances))
+	for name, dsn := range cfg.Instances {
+		db, err := sql.Open("mysql", dsn)
+		if err != nil {
+			return nil, err
+		}
+		pool[name] = db
+	}
+	m := &shardMap{}
+	for _, r := range cfg.Ranges {
+		for s := r.Slots[0]; s <= r.Slots[1]; s++ {
+			m.slotToDB[s] = pool[r.Instance]
+		}
+	}
+	return m, nil
+}
+```
+
+扩容 = 只改 yaml 的 ranges，再触发 `Update`。
+
+**⑤ 一次性预建 1024 个库表**
+
+预分片的"预"也体现在 DDL 一次性做完，扩容时只搬数据不建 schema：
+
+```go
+func InitSchema(instance *sql.DB, slots []int, tableCount int) error {
+	for _, slot := range slots {
+		dbName := fmt.Sprintf("db_%04d", slot)
+		if _, err := instance.Exec(
+			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s DEFAULT CHARSET utf8mb4", dbName),
+		); err != nil {
+			return err
+		}
+		for t := 0; t < tableCount; t++ {
+			ddl := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s.t_order_%d (
+				order_id   BIGINT PRIMARY KEY,
+				user_id    BIGINT NOT NULL,
+				amount     DECIMAL(10,2),
+				created_at DATETIME,
+				KEY idx_user (user_id)
+			) ENGINE=InnoDB`, dbName, t)
+			if _, err := instance.Exec(ddl); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 ```
 
@@ -355,6 +526,12 @@ func (r *Router) Locate(shardingKey, logicalTable string) (string, *sql.DB) {
 1. DBA 在新实例上建好目标 db，用 `mysqldump` 或 `gh-ost`/DTS 做存量 + binlog 增量同步；
 2. 同步追平后，短暂锁写 → 原子替换路由表 `slotToInstance` → 放流量；
 3. 老实例上被搬走的库保留一段时间作回滚，确认无误后 drop。
+
+### 容易踩的三个坑
+
+1. **分片键一旦定了几乎不能改**。改分片键 = 全量数据洗牌，比扩容还痛苦。订单系统常用 `user_id` 而不是 `order_id`，这样按用户的查询全落单库。
+2. **跨分片查询要预先规避**。需要"按商家维度查订单"时，标准做法是双写一份按 `merchant_id` 分片的索引表，别想着运行时做 scatter-gather。
+3. **初始分片数宁多勿少**。1024 起步几乎没上限压力，比"按当前机器数精确规划"重要得多——这是唯一不能改的参数。
 
 ## 一句话串起来
 
