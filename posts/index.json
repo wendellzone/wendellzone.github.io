@@ -46,6 +46,19 @@
     "readingTime": 4
   },
   {
+    "slug": "leetcode-hot100-go",
+    "title": "力扣 Hot 100 题型归类与深度解析（Go 版）",
+    "date": "2026-05-11",
+    "tags": [
+      "算法",
+      "Go",
+      "力扣",
+      "刷题"
+    ],
+    "summary": "把 Hot 100 拆成 17 类套路，每题五段式：题目→抓手→关键观察→Go 代码→踩坑点。",
+    "readingTime": 24
+  },
+  {
     "slug": "mira-secure-data-flow",
     "title": "Mira 安全数据流：一次加密上链的拆解",
     "date": "2026-05-10",
