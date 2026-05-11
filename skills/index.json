@@ -6,8 +6,19 @@
     "summary": "把 wendellzone.github.io 的发文、改文、删文、阅读时间同步封装成一条命令。",
     "tags": ["博客", "自动化", "Python"],
     "triggers": ["发一篇博客", "改博客文章", "删博客文章", "列出博客文章"],
-    "size": 11112,
+    "size": 11102,
     "file": "blog-post.zip",
+    "install": "WorkBuddy: 解压到 ~/.workbuddy/skills/ 即可；或导入 zip"
+  },
+  {
+    "slug": "github-cli",
+    "name": "github-cli",
+    "version": "1.0.0",
+    "summary": "通过本机 gh CLI 操作 GitHub 仓库 / Issue / PR / Release / Workflow，登录态由 gh 自己管，不接收明文 token。",
+    "tags": ["GitHub", "DevOps", "CLI"],
+    "triggers": ["列我的仓库", "看那个 PR", "创建 issue", "触发 workflow", "搜代码 xxx"],
+    "size": 9538,
+    "file": "github-cli.zip",
     "install": "WorkBuddy: 解压到 ~/.workbuddy/skills/ 即可；或导入 zip"
   }
 ]
