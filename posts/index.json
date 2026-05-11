@@ -8,7 +8,7 @@
       "工程化",
       "工作流"
     ],
-    "summary": "从零理解 Skills 与 Rules 两种机制，用上下文经济学解释为何要拆分；给出编码、运维/SRE、数据报告三个完整工作流案例，并按 Anthropic skill-creator 的最佳实践讲透 description 写法、渐进式信息披露与评测驱动迭代。",
+    "summary": "从零理解 Skills 与 Rules 两种机制、为什么要拆分，以及怎么落地编码、运维、数据三类工作流。重点讲清 Skill 怎么写才会被触发、怎么迭代才不会过拟合。",
     "readingTime": 15
   },
   {
