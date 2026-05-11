@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>Wendell's Zone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Wendell 的技术博客 —— 后端、隐私计算、系统设计与日常思考。" />
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #222;
+    --fg-muted: #6a737d;
+    --fg-soft: #57606a;
+    --border: #eaecef;
+    --link: #0366d6;
+    --tag-bg: #eef4ff;
+    --tag-fg: #0550ae;
+    --code-bg: #f6f8fa;
+    --max-width: 780px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                 "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* 顶栏 */
+  header.site {
+    border-bottom: 1px solid var(--border);
+    background: #fff;
+  }
+  header.site .inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 18px 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  header.site h1 {
+    margin: 0; font-size: 18px; font-weight: 700;
+    letter-spacing: .3px;
+  }
+  header.site h1 a { color: var(--fg); }
+  header.site nav { margin-left: auto; display: flex; gap: 16px; }
+  header.site nav a { color: var(--fg-soft); font-size: 14px; }
+
+  main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* 列表页 */
+  .post-list { list-style: none; padding: 0; margin: 0; }
+  .post-item {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .post-item h2 {
+    margin: 0 0 6px; font-size: 19px; font-weight: 600;
+  }
+  .post-item h2 a { color: var(--fg); }
+  .post-item h2 a:hover { color: var(--link); text-decoration: none; }
+  .post-meta {
+    font-size: 12px; color: var(--fg-muted);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .post-tag {
+    display: inline-block;
+    background: var(--tag-bg); color: var(--tag-fg);
+    padding: 1px 8px; border-radius: 10px; font-size: 11px;
+  }
+  .post-summary {
+    color: var(--fg-soft); font-size: 14px; margin: 4px 0 0;
+  }
+
+  /* 搜索 / 标签栏 */
+  .filter-bar {
+    display: flex; gap: 10px; align-items: center;
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-bar input {
+    flex: 1; min-width: 200px;
+    padding: 8px 12px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: #fff;
+  }
+  .filter-bar input:focus { outline: none; border-color: var(--link); }
+  .tag-cloud { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag-cloud button {
+    background: var(--tag-bg); color: var(--tag-fg);
+    border: none; padding: 3px 10px; border-radius: 10px;
+    font-size: 12px; cursor: pointer;
+  }
+  .tag-cloud button.active {
+    background: var(--tag-fg); color: #fff;
+  }
+  .empty {
+    color: var(--fg-muted); padding: 40px 0; text-align: center;
+  }
+
+  /* 详情页 */
+  .article-head {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .article-head h1 {
+    margin: 0 0 8px; font-size: 28px;
+    font-weight: 700; line-height: 1.3;
+  }
+  .back-link {
+    display: inline-block; margin-bottom: 14px;
+    color: var(--fg-muted); font-size: 13px;
+  }
+  .back-link:hover { color: var(--link); }
+
+  /* Markdown 正文 */
+  .markdown h1 { font-size: 24px; margin: 24px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .markdown h2 { font-size: 20px; margin: 22px 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .markdown h3 { font-size: 17px; margin: 20px 0 8px; }
+  .markdown h4 { font-size: 15px; margin: 16px 0 6px; }
+  .markdown p  { margin: 12px 0; }
+  .markdown ul, .markdown ol { margin: 10px 0; padding-left: 1.8em; }
+  .markdown li { margin: 4px 0; }
+  .markdown code {
+    background: var(--code-bg); padding: 2px 6px;
+    border-radius: 4px; font-size: 13px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  .markdown pre {
+    background: var(--code-bg); padding: 14px 16px;
+    border-radius: 6px; overflow-x: auto; margin: 14px 0;
+    font-size: 13px; line-height: 1.55;
+  }
+  .markdown pre code { background: transparent; padding: 0; font-size: 13px; }
+  .markdown blockquote {
+    border-left: 4px solid #dfe2e5; color: var(--fg-soft);
+    padding: 4px 16px; margin: 14px 0;
+  }
+  .markdown table {
+    border-collapse: collapse; margin: 14px 0;
+    font-size: 14px;
+  }
+  .markdown th, .markdown td {
+    border: 1px solid var(--border); padding: 6px 12px;
+  }
+  .markdown th { background: var(--code-bg); }
+  .markdown img { max-width: 100%; border-radius: 4px; }
+  .markdown hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  .markdown a { color: var(--link); }
+
+  /* PlantUML 块 */
+  .plantuml-block {
+    margin: 14px 0; padding: 12px;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 6px; text-align: center;
+    min-height: 60px;
+  }
+  .plantuml-block svg { max-width: 100%; height: auto; }
+  .plantuml-ph { color: var(--fg-muted); font-size: 12px; padding: 20px; }
+  .plantuml-err {
+    color: #cf222e; padding: 10px 14px; font-size: 12px;
+    background: #fff5f5; border: 1px solid #ffd6d6;
+    border-radius: 4px; font-family: monospace; white-space: pre-wrap;
+  }
+
+  /* Footer */
+  footer {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 30px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--fg-muted); font-size: 12px;
+    text-align: center;
+  }
+  footer a { color: var(--fg-muted); }
+
+  .loading {
+    color: var(--fg-muted); text-align: center; padding: 40px 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="inner">
+    <h1><a href="#/">Wendell's Zone</a></h1>
+    <nav>
+      <a href="#/">首页</a>
+      <a href="#/about">关于</a>
+      <a href="https://github.com/wendellzone" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="app">
+  <div class="loading">加载中…</div>
+</main>
+
+<footer>
+  © <span id="year"></span> Wendell · 由 <a href="https://pages.github.com/" target="_blank" rel="noopener">GitHub Pages</a> 托管
+</footer>
+
+<script>
+/* ========================================================
+   基础工具
+======================================================== */
+document.getElementById('year').textContent = new Date().getFullYear();
+const app = document.getElementById('app');
+
+function escapeHtml(s) {
+  return (s == null ? '' : s + '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return d.toISOString().slice(0, 10);
+}
+
+/* ========================================================
+   PlantUML 编码 + 懒加载
+======================================================== */
+function encode6bit(b) {
+  if (b < 10) return String.fromCharCode(48 + b);
+  b -= 10; if (b < 26) return String.fromCharCode(65 + b);
+  b -= 26; if (b < 26) return String.fromCharCode(97 + b);
+  b -= 26; if (b === 0) return '-';
+  if (b === 1) return '_'; return '?';
+}
+function append3bytes(b1, b2, b3) {
+  const c1 = b1 >> 2, c2 = ((b1 & 0x3) << 4) | (b2 >> 4),
+        c3 = ((b2 & 0xF) << 2) | (b3 >> 6), c4 = b3 & 0x3F;
+  return encode6bit(c1 & 0x3F) + encode6bit(c2 & 0x3F) + encode6bit(c3 & 0x3F) + encode6bit(c4 & 0x3F);
+}
+function encode64(data) {
+  let r = '';
+  for (let i = 0; i < data.length; i += 3) {
+    if (i + 2 === data.length)      r += append3bytes(data[i], data[i+1], 0);
+    else if (i + 1 === data.length) r += append3bytes(data[i], 0, 0);
+    else                             r += append3bytes(data[i], data[i+1], data[i+2]);
+  }
+  return r;
+}
+function plantumlUrl(code) {
+  const compressed = pako.deflateRaw(new TextEncoder().encode(code), { level: 9 });
+  return 'https://www.plantuml.com/plantuml/svg/' + encode64(compressed);
+}
+function fetchWithTimeout(url, ms = 8000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+const pumlCache = new Map();
+async function hydratePlantUML(root) {
+  const blocks = [...root.querySelectorAll('.plantuml-block[data-code]')];
+  await Promise.allSettled(blocks.map(async el => {
+    const code = decodeURIComponent(escape(atob(el.dataset.code)));
+    if (pumlCache.has(code)) { el.innerHTML = pumlCache.get(code); return; }
+    const url = plantumlUrl(code);
+    try {
+      const r = await fetchWithTimeout(url, 8000);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const svg = await r.text();
+      pumlCache.set(code, svg);
+      el.innerHTML = svg;
+    } catch (e) {
+      const msg = e.name === 'AbortError' ? '请求超时' : e.message;
+      el.innerHTML = `<div class="plantuml-err">PlantUML 渲染失败：${msg}\n备用：<a href="${url}" target="_blank">在 plantuml.com 打开</a></div>`;
+    }
+  }));
+}
+
+/* ========================================================
+   Markdown 渲染（带 PlantUML 占位 + 代码高亮）
+======================================================== */
+function buildRenderer() {
+  const r = new marked.Renderer();
+  r.code = function(code, lang) {
+    if (typeof code === 'object' && code !== null) { lang = code.lang; code = code.text; }
+    const l = (lang || '').toLowerCase();
+    if (l === 'plantuml' || l === 'puml') {
+      const b64 = btoa(unescape(encodeURIComponent(code)));
+      return `<div class="plantuml-block" data-code="${b64}"><div class="plantuml-ph">PlantUML 渲染中…</div></div>`;
+    }
+    let html;
+    try {
+      html = lang && hljs.getLanguage(lang)
+        ? hljs.highlight(code, { language: lang }).value
+        : hljs.highlightAuto(code).value;
+    } catch { html = code; }
+    return `<pre><code class="hljs language-${lang||''}">${html}</code></pre>`;
+  };
+  return r;
+}
+function renderMarkdown(md) {
+  marked.setOptions({ gfm: true, breaks: false, renderer: buildRenderer() });
+  return DOMPurify.sanitize(marked.parse(md || ''), { ADD_ATTR: ['data-code'] });
+}
+
+/* ========================================================
+   路由 + 数据加载
+======================================================== */
+let INDEX = null;   // posts/index.json
+
+async function loadIndex() {
+  if (INDEX) return INDEX;
+  const resp = await fetch('posts/index.json');
+  if (!resp.ok) throw new Error('无法加载文章索引：' + resp.status);
+  INDEX = await resp.json();
+  // 按日期倒序
+  INDEX.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return INDEX;
+}
+async function loadPost(slug) {
+  const resp = await fetch(`posts/${slug}.md`);
+  if (!resp.ok) throw new Error('文章未找到');
+  return resp.text();
+}
+
+function route() {
+  const hash = location.hash.replace(/^#/, '') || '/';
+  if (hash === '/' || hash === '') return renderList();
+  if (hash === '/about')           return renderAbout();
+  const m = /^\/post\/([\w\-]+)/.exec(hash);
+  if (m) return renderPost(m[1]);
+  renderNotFound();
+}
+window.addEventListener('hashchange', route);
+
+/* ========================================================
+   列表页
+======================================================== */
+let filterState = { q: '', tag: '' };
+
+async function renderList() {
+  try {
+    const posts = await loadIndex();
+    const tagSet = new Set();
+    posts.forEach(p => (p.tags || []).forEach(t => tagSet.add(t)));
+    const tags = [...tagSet].sort();
+
+    app.innerHTML = `
+      <div class="filter-bar">
+        <input id="q" type="search" placeholder="搜索标题 / 摘要…" value="${escapeHtml(filterState.q)}">
+        <div class="tag-cloud">
+          <button data-tag="" class="${filterState.tag === '' ? 'active' : ''}">全部</button>
+          ${tags.map(t => `<button data-tag="${escapeHtml(t)}" class="${filterState.tag === t ? 'active' : ''}">${escapeHtml(t)}</button>`).join('')}
+        </div>
+      </div>
+      <ul class="post-list" id="list"></ul>
+    `;
+
+    const paint = () => {
+      const q = filterState.q.toLowerCase();
+      const tag = filterState.tag;
+      const filtered = posts.filter(p => {
+        if (tag && !(p.tags || []).includes(tag)) return false;
+        if (q) {
+          const hay = `${p.title||''} ${p.summary||''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      const list = document.getElementById('list');
+      if (!filtered.length) {
+        list.innerHTML = `<li class="empty">没有符合条件的文章</li>`;
+        return;
+      }
+      list.innerHTML = filtered.map(p => `
+        <li class="post-item">
+          <h2><a href="#/post/${encodeURIComponent(p.slug)}">${escapeHtml(p.title)}</a></h2>
+          <div class="post-meta">
+            <span>${fmtDate(p.date)}</span>
+            ${(p.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join('')}
+          </div>
+          ${p.summary ? `<p class="post-summary">${escapeHtml(p.summary)}</p>` : ''}
+        </li>
+      `).join('');
+    };
+    paint();
+
+    document.getElementById('q').addEventListener('input', (e) => {
+      filterState.q = e.target.value; paint();
+    });
+    document.querySelectorAll('.tag-cloud button').forEach(b => {
+      b.addEventListener('click', () => {
+        filterState.tag = b.dataset.tag;
+        document.querySelectorAll('.tag-cloud button').forEach(x => x.classList.toggle('active', x === b));
+        paint();
+      });
+    });
+  } catch (e) {
+    app.innerHTML = `<div class="empty">加载文章失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ========================================================
+   详情页
+======================================================== */
+async function renderPost(slug) {
+  app.innerHTML = `<div class="loading">加载中…</div>`;
+  try {
+    const posts = await loadIndex();
+    const meta = posts.find(p => p.slug === slug);
+    const raw = await loadPost(slug);
+
+    // 去掉文件开头的 frontmatter（--- ... ---）
+    const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '');
+
+    const tagsHtml = (meta?.tags || []).map(t => `<span class="post-tag">${escapeHtml(t)}</span>`).join(' ');
+
+    app.innerHTML = `
+      <a class="back-link" href="#/">← 返回列表</a>
+      <div class="article-head">
+        <h1>${escapeHtml(meta?.title || slug)}</h1>
+        <div class="post-meta">
+          <span>${fmtDate(meta?.date)}</span>
+          ${tagsHtml}
+        </div>
+      </div>
+      <article class="markdown" id="article">${renderMarkdown(body)}</article>
+    `;
+    document.title = (meta?.title || slug) + ' · Wendell\'s Zone';
+    hydratePlantUML(document.getElementById('article'));
+    window.scrollTo(0, 0);
+  } catch (e) {
+    app.innerHTML = `
+      <a class="back-link" href="#/">← 返回列表</a>
+      <div class="empty">加载文章失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ========================================================
+   关于页 / 404
+======================================================== */
+function renderAbout() {
+  document.title = '关于 · Wendell\'s Zone';
+  app.innerHTML = `
+    <a class="back-link" href="#/">← 返回列表</a>
+    <article class="markdown">
+      <h1>关于</h1>
+      <p>我是 Wendell，一名后端工程师，关注隐私计算、分布式系统和服务端性能优化。</p>
+      <p>这里记录一些项目复盘、技术笔记与日常思考。文章源码托管在
+        <a href="https://github.com/wendellzone/wendellzone.github.io">wendellzone/wendellzone.github.io</a>。</p>
+      <h2>联系</h2>
+      <ul>
+        <li>GitHub: <a href="https://github.com/wendellzone">wendellzone</a></li>
+      </ul>
+    </article>`;
+}
+function renderNotFound() {
+  document.title = '未找到 · Wendell\'s Zone';
+  app.innerHTML = `
+    <a class="back-link" href="#/">← 返回列表</a>
+    <div class="empty">页面未找到</div>`;
+}
+
+/* ========================================================
+   启动
+======================================================== */
+route();
+</script>
+
+</body>
+</html>
