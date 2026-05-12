@@ -120,8 +120,8 @@
       "MySQL",
       "Go"
     ],
-    "summary": "从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个固定 slot，拓展到 MySQL 预分片——用远超物理节点数的逻辑分片对抗持久化数据的迁移成本。",
-    "readingTime": 24
+    "summary": "从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个固定 slot，落到 MySQL 上就是桶预分片：用远多于物理节点的逻辑桶 + 桶→实例映射表，让扩容只搬数据不改公式。",
+    "readingTime": 26
   },
   {
     "slug": "golang-channel-quickstart",
