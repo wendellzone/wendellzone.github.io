@@ -521,6 +521,20 @@ function fetchWithTimeout(url, ms = 8000) {
   return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
 }
 const pumlCache = new Map();
+function pumlImgFallback(url) {
+  // fetch 失败时降级到 <img>，浏览器直接拉图，不受 CORS / fetch 拦截影响
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = 'PlantUML diagram';
+  img.loading = 'lazy';
+  img.style.maxWidth = '100%';
+  img.style.height = 'auto';
+  img.onerror = () => {
+    const wrap = img.parentElement;
+    if (wrap) wrap.innerHTML = `<div class="plantuml-err">PlantUML 渲染失败。<a href="${url}" target="_blank" rel="noopener">在 plantuml.com 打开</a></div>`;
+  };
+  return img;
+}
 async function hydratePlantUML(root) {
   const blocks = [...root.querySelectorAll('.plantuml-block[data-code]')];
   await Promise.allSettled(blocks.map(async el => {
@@ -531,11 +545,16 @@ async function hydratePlantUML(root) {
       const r = await fetchWithTimeout(url, 8000);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const svg = await r.text();
+      // plantuml.com 偶尔返回 200 + welcome 占位图（被广告 CDN 拦截时）
+      if (svg.includes('Welcome to PlantUML') || svg.length < 300) {
+        throw new Error('placeholder svg');
+      }
       pumlCache.set(code, svg);
       el.innerHTML = svg;
     } catch (e) {
-      const msg = e.name === 'AbortError' ? '请求超时' : e.message;
-      el.innerHTML = `<div class="plantuml-err">PlantUML 渲染失败：${msg}\n备用：<a href="${url}" target="_blank">在 plantuml.com 打开</a></div>`;
+      // fetch 受 CORS/广告 CDN 限制时，降级到 <img>
+      el.innerHTML = '';
+      el.appendChild(pumlImgFallback(url));
     }
   }));
 }
