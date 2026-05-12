@@ -1,5 +1,17 @@
 [
   {
+    "slug": "skill-creator-deep-dive",
+    "title": "skill-creator 深度解析：一个教模型如何造技能的技能",
+    "date": "2026-05-12",
+    "tags": [
+      "工具",
+      "AI",
+      "复盘"
+    ],
+    "summary": "按阅读顺序拆解 skill-creator 的 SKILL.md，看清每条指令背后的设计意图与权衡。",
+    "readingTime": 14
+  },
+  {
     "slug": "skills-rules-ai-workflow",
     "title": "基于 Skills + Rules 构建 AI Agent 自动化工作流",
     "date": "2026-05-11",
