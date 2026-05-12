@@ -8,6 +8,7 @@ summary: 从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个�
 
 
 
+
 后端做数据分片，几乎一定会碰到三个词：**一致性哈希**、**Redis slot**、**MySQL 预分片**。它们看起来各是各的，其实底层思路一脉相承——都是在"key 到物理节点"之间塞一个稳定的中间层，让物理扩缩容不再牵连全量数据。
 
 这篇博客把三件事串起来讲清楚。
@@ -246,6 +247,151 @@ antirez 亲自回答过：
 - **压缩效率**：bitmap 传输用游程压缩，填充率越低压缩效果越好，16384 在常见规模下填充率刚好合适。
 
 所以 Redis 取的数字是 **16384**，不是大家记忆里和一致性哈希混在一起的 150。后者是 ketama 算法的虚拟节点推荐值，在 memcached / Redis 客户端分片（twemproxy、codis、Jedis ShardedJedis）那一套体系里。
+
+### slot 怎么关联到 key 和节点
+
+数字 16384 只是中间的一层抽象，完整链路是：
+
+<svg viewBox="0 0 680 320" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="rsk-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">key → slot → 节点 的完整路由链路</text>
+
+  <g>
+    <rect x="40" y="60" width="180" height="60" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+    <text x="130" y="82" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">客户端 (key)</text>
+    <text x="130" y="100" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">SET user:1001 wendell</text>
+  </g>
+
+  <path d="M220 90 L 260 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#rsk-arrow)"/>
+  <text x="240" y="80" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#666">CRC16</text>
+
+  <g>
+    <rect x="260" y="60" width="160" height="60" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="340" y="82" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">slot 编号</text>
+    <text x="340" y="100" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">7543 (0..16383)</text>
+  </g>
+
+  <path d="M420 90 L 460 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#rsk-arrow)"/>
+  <text x="440" y="80" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#666">查路由表</text>
+
+  <g>
+    <rect x="460" y="60" width="180" height="60" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="550" y="82" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">主节点 IP</text>
+    <text x="550" y="100" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">10.0.0.2:6379</text>
+  </g>
+
+  <g>
+    <rect x="40" y="160" width="600" height="135" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+    <text x="60" y="182" font-family="sans-serif" font-size="12" font-weight="500" fill="#444">集群路由表 (clusterState.slots[16384])</text>
+    <text x="60" y="200" font-family="monospace" font-size="11" fill="#666">slot 0     → mysql-cluster Node A (10.0.0.1:6379)</text>
+    <text x="60" y="216" font-family="monospace" font-size="11" fill="#666">slot 1     → Node A</text>
+    <text x="60" y="232" font-family="monospace" font-size="11" fill="#666">  ...</text>
+    <text x="60" y="248" font-family="monospace" font-size="11" fill="#A32D2D">slot 7543  → Node B (10.0.0.2:6379)   ← 命中</text>
+    <text x="60" y="264" font-family="monospace" font-size="11" fill="#666">  ...</text>
+    <text x="60" y="280" font-family="monospace" font-size="11" fill="#666">slot 16383 → Node C (10.0.0.3:6379)</text>
+  </g>
+
+  <text x="340" y="312" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">这张表由集群所有节点 gossip 维护，客户端启动时拉一份缓存，过期则被 MOVED 纠正</text>
+</svg>
+
+#### key → slot：CRC16 + hash tag
+
+```
+HASH_SLOT = CRC16(key) & 16383
+```
+
+**注意 ①：Redis Cluster 不支持多 database**，所有 key 都在 `db 0`。集群模式下 `SELECT 1` 直接报错，所以严格来说没有"库"的概念，**key 直接绑定 slot**。
+
+**注意 ②：key 含 `{...}` 时只 hash 大括号里的内容**——这就是 hash tag：
+
+```redis
+{user:1001}.profile      # CRC16("user:1001") & 16383 = 7543
+{user:1001}.orders       # 同样是 7543
+{user:1001}.cart         # 同样是 7543
+```
+
+hash tag 是让"相关 key 落同一节点"的**官方手段**。MGET、MSET、MULTI 事务、Lua 脚本要求所有 key 在同一 slot——做这种跨 key 操作必须用 hash tag 把它们绑到一起，否则报 `CROSSSLOT Keys in request don't hash to the same slot`。
+
+#### slot → 节点：集群路由表
+
+每个 Redis 节点内部维护：
+- `clusterNode.slots`：自己负责的 slot bitmap（16384 位）；
+- `clusterState.slots[16384]`：整张集群视图，每项指向某个主节点。
+
+节点之间用 **gossip 心跳**互相同步这张表，每条心跳带自己的 slot bitmap（这就是 16384 选 2KB 而不是 8KB 的原因）。可以用 `CLUSTER SLOTS` 或 `CLUSTER NODES` 查到当前的映射：
+
+```
+> CLUSTER SLOTS
+1) 1) (integer) 0          # 起始 slot
+   2) (integer) 5460       # 结束 slot
+   3) 1) "10.0.0.1"        # 主节点 IP
+      2) (integer) 6379
+2) 1) (integer) 5461
+   2) (integer) 10922
+   3) 1) "10.0.0.2"
+      ...
+```
+
+#### 客户端怎么找到正确节点
+
+智能客户端（`go-redis`、`lettuce`、`redis-py-cluster` 等）的标准流程：
+
+1. 启动时执行 `CLUSTER SLOTS`，缓存整张映射；
+2. 每次请求自己算 `CRC16(key) & 16383`，**直连**目标节点；
+3. 如果路由表过期（刚做了 slot 迁移），节点返回 **`MOVED`** 重定向：
+
+```
+> SET user:1001 wendell
+(error) MOVED 7543 10.0.0.2:6379
+```
+
+含义："这个 slot 现在归 10.0.0.2"。客户端**必须更新本地缓存**再重试，这是路由表跟集群拓扑保持一致的核心机制。
+
+slot 迁移**进行中**时还会出现 **`ASK`**：
+
+```
+(error) ASK 7543 10.0.0.5:6379
+```
+
+意思是"这一次去 10.0.0.5 找它，但 slot 还没真正归它"。客户端要发 `ASKING` 再发原命令，**不能更新路由表**。`MOVED` 是永久的，`ASK` 是临时的——这两个区分让客户端在迁移期间也不会把缓存搞乱。
+
+#### Go 代码：手动模拟客户端路由
+
+`go-redis` 的 `ClusterClient` 已经把这套全包了，但理解原理可以手撸一个最小版：
+
+```go
+import "github.com/go-redis/redis/v9/internal/hashtag"
+
+type ClusterRouter struct {
+	mu        sync.RWMutex
+	slotToIP  [16384]string // gossip 同步来的快照
+}
+
+// 标准库没暴露 CRC16-CCITT，自己实现或用 redis 的源码
+func slotOf(key string) uint16 {
+	tag := extractHashTag(key) // 提取 {} 里的内容；没有则用整个 key
+	return crc16ccitt([]byte(tag)) & 16383
+}
+
+func (c *ClusterRouter) Pick(key string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.slotToIP[slotOf(key)]
+}
+
+// 收到 MOVED 时更新路由表
+func (c *ClusterRouter) HandleMoved(slot uint16, newAddr string) {
+	c.mu.Lock()
+	c.slotToIP[slot] = newAddr
+	c.mu.Unlock()
+}
+```
+
+到这里就清楚了：**16384 是一层稳定的中间编号**，上面挂 key（通过 CRC16+hash tag），下面挂节点（通过集群 gossip 维护的映射表）。slot 是 Redis Cluster 整套机制的**枢纽**——扩缩容、迁移、读写重定向，全都围绕"slot 归谁"展开。
 
 ### slot 方案 vs 一致性哈希
 
