@@ -135,18 +135,6 @@
     "readingTime": 2
   },
   {
-    "slug": "mira-secure-data-flow",
-    "title": "Mira 安全数据流：一次加密上链的拆解",
-    "date": "2026-05-10",
-    "tags": [
-      "隐私计算",
-      "后端",
-      "长安链"
-    ],
-    "summary": "从上传请求到链上存证，一次把 KEK 派生、密文落盘、哈希上链的流程拆开说清楚。",
-    "readingTime": 3
-  },
-  {
     "slug": "plantuml-in-markdown",
     "title": "在 Markdown 里直接写 PlantUML",
     "date": "2026-05-09",
