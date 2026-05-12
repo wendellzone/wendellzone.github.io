@@ -9,6 +9,7 @@ summary: 从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个�
 
 
 
+
 后端做数据分片，几乎一定会碰到三个词：**一致性哈希**、**Redis slot**、**MySQL 预分片**。它们看起来各是各的，其实底层思路一脉相承——都是在"key 到物理节点"之间塞一个稳定的中间层，让物理扩缩容不再牵连全量数据。
 
 这篇博客把三件事串起来讲清楚。
@@ -418,9 +419,9 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
   <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">预分片：1024 个逻辑分片，只改映射不改算法</text>
   <text x="340" y="46" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">shard_id = hash(sharding_key) % 1024</text>
   <g>
-    <text x="40" y="78" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">逻辑分片层（固定 1024 个 db 编号）</text>
+    <text x="40" y="78" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">逻辑分片层（固定 1024 个 shard_id）</text>
     <rect x="40" y="88" width="600" height="36" rx="6" fill="#f7f7f4" stroke="#ddd" stroke-width="0.5"/>
-    <text x="340" y="111" text-anchor="middle" font-family="monospace" font-size="12" fill="#666">db_0000 · db_0001 · db_0002 · ··· · db_1022 · db_1023</text>
+    <text x="340" y="111" text-anchor="middle" font-family="monospace" font-size="12" fill="#666">shard 0 · 1 · 2 · ··· · 1022 · 1023  （每个 shard = 一张物理表）</text>
   </g>
   <g>
     <path d="M120 130 L 120 170" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#ms-arrow)"/>
@@ -428,13 +429,13 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
     <path d="M560 130 L 560 170" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#ms-arrow)"/>
   </g>
   <g>
-    <text x="40" y="190" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">初期：2 台物理机（每台 512 个逻辑库）</text>
+    <text x="40" y="190" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">初期：2 台物理机（每台承载 512 个分片）</text>
     <rect x="40" y="200" width="290" height="50" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <rect x="350" y="200" width="290" height="50" rx="8" fill="#9FE1CB" stroke="#0F6E56" stroke-width="0.5"/>
     <text x="185" y="222" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">MySQL-1</text>
-    <text x="185" y="240" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#3C3489">db_0000 – db_0511</text>
+    <text x="185" y="240" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#3C3489">shard 0 – 511</text>
     <text x="495" y="222" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">MySQL-2</text>
-    <text x="495" y="240" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">db_0512 – db_1023</text>
+    <text x="495" y="240" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">shard 512 – 1023</text>
   </g>
   <g>
     <path d="M 185 260 L 140 290" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#ms-arrow)"/>
@@ -443,84 +444,124 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
     <path d="M 495 260 L 540 290" fill="none" stroke="#D85A30" stroke-width="0.8" stroke-dasharray="2 2" marker-end="url(#ms-arrow)"/>
   </g>
   <g>
-    <text x="40" y="310" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">扩容后：4 台物理机（搬 512 个库，路由无需改）</text>
+    <text x="40" y="310" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">扩容后：4 台物理机（搬 512 个分片，路由无需改）</text>
     <rect x="40" y="320" width="140" height="50" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <rect x="185" y="320" width="140" height="50" rx="8" fill="#F5C4B3" stroke="#993C1D" stroke-width="0.5"/>
     <rect x="350" y="320" width="140" height="50" rx="8" fill="#9FE1CB" stroke="#0F6E56" stroke-width="0.5"/>
     <rect x="495" y="320" width="140" height="50" rx="8" fill="#FAC775" stroke="#854F0B" stroke-width="0.5"/>
     <text x="110" y="342" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">MySQL-1</text>
-    <text x="110" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#3C3489">db_0000–0255</text>
+    <text x="110" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#3C3489">shard 0–255</text>
     <text x="255" y="342" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#993C1D">MySQL-3 新</text>
-    <text x="255" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#993C1D">db_0256–0511</text>
+    <text x="255" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#993C1D">shard 256–511</text>
     <text x="420" y="342" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">MySQL-2</text>
-    <text x="420" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">db_0512–0767</text>
+    <text x="420" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">shard 512–767</text>
     <text x="565" y="342" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">MySQL-4 新</text>
-    <text x="565" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#854F0B">db_0768–1023</text>
+    <text x="565" y="358" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#854F0B">shard 768–1023</text>
   </g>
-  <text x="340" y="395" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">逻辑分片数 1024 始终不变，只搬库、改路由映射表</text>
+  <text x="340" y="395" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">逻辑分片数 1024 始终不变，只搬数据、改路由映射表</text>
 </svg>
 
 ### 预分片三板斧
 
 1. **逻辑分片数选 2 的幂**（1024、2048、4096 常见）。按位运算快、可反复对半劈、物理机数只要也是 2 的幂就能平均分。
-2. **路由层维护映射表**：`db_xxxx → 物理实例 IP`。扩容就是搬库 + 改映射表 + 切流量，业务代码不动。
-3. **分库分表两层**：对大表（订单、消息）在 db 内再切 N 张表。常见配置：**32 库 × 32 表 = 1024 个物理表**，或 **1024 库 × 8 表**。
+2. **路由层维护映射表**：`shard_id → 物理实例 + schema + 表名`。扩容就是搬数据 + 改映射表 + 切流量，业务代码不动。
+3. **逻辑分片数 ≫ 物理 schema 数**：1024 体现在"表"的维度，不是"db"的维度。常见组合：**8 实例 × 4 schema × 32 表 = 1024**，或 **8 实例 × 1 schema × 128 表**。
 
-### 物理部署：1024 个逻辑库到底放在哪
+### 物理部署：1024 个逻辑分片实际怎么落到机器上
 
-容易让人困惑的点：1024 不是 1024 台 MySQL，而是 **1024 个 db schema 整建制部署到 N 台机器上**。早期 N 可能只有 2，每台塞 512 个库；后期可以是 8、16，每台塞 128、64。
+最容易踩的认知坑：**1024 个逻辑分片 ≠ 1024 个物理 db**。
 
-<svg viewBox="0 0 680 360" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+如果真的在一台 MySQL 上建 512 个 schema，运维会立刻爆炸——`table_open_cache` / `table_definition_cache` 直接顶天，备份脚本、监控、权限管理都跟着遭殃。所以**物理 schema 通常少很多**，1024 这个数字主要落在**表后缀**上。
+
+主流形态有两种：
+
+| 方案 | 实例 × schema × 表 | 优势 |
+|---|---|---|
+| 极简 | 8 × 1 × 128 | 运维最简单，metadata 开销最小 |
+| **均衡** ✅ | **8 × 4 × 32** | **schema 粒度方便备份/迁移/权限隔离** |
+| 重 schema | 8 × 32 × 4 | 适合每 schema 业务边界明显的场景 |
+
+下面用主流的 "**8 实例 × 4 schema × 32 表 = 1024**" 来画图：
+
+<svg viewBox="0 0 680 380" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <marker id="dep-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
   </defs>
-  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">应用看到的 1024 个分片 → 实际只在 2 台机器上</text>
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">应用看到的 1024 个分片 → 实际只在 8 台机器上</text>
 
   <g>
-    <rect x="40" y="50" width="600" height="50" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+    <rect x="40" y="50" width="600" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
     <text x="340" y="72" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">应用层（业务代码）</text>
-    <text x="340" y="90" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">shard_id = hash(user_id) &amp; 1023  →  Locate("user:1001", "t_order")</text>
+    <text x="340" y="89" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">shard_id = hash(user_id) &amp; 1023  →  Locate("user:1001", "t_order") = "order_db_2.t_order_27"</text>
   </g>
 
-  <path d="M340 100 L 340 130" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+  <path d="M340 98 L 340 124" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
 
   <g>
-    <rect x="40" y="135" width="600" height="42" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
-    <text x="340" y="155" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">路由层（slot → 物理实例 映射表）</text>
-    <text x="340" y="170" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">slot 0..511 → mysql-1   ·   slot 512..1023 → mysql-2</text>
+    <rect x="40" y="128" width="600" height="60" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="340" y="148" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">路由层（拆 shard_id：实例 / schema / 表）</text>
+    <text x="340" y="165" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">instance_idx = shard_id / 128       schema_idx = (shard_id / 32) % 4</text>
+    <text x="340" y="180" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">table_idx    = shard_id % 32        ← 1024 = 8 × 4 × 32</text>
   </g>
 
-  <path d="M180 177 L 180 215" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
-  <path d="M500 177 L 500 215" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+  <path d="M340 188 L 340 214" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
 
   <g>
-    <rect x="40" y="220" width="280" height="120" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
-    <text x="180" y="242" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">mysql-1 (10.0.0.1)</text>
-    <text x="180" y="262" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0000  db_0001  db_0002</text>
-    <text x="180" y="278" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0003  ...      db_0511</text>
-    <text x="180" y="305" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">每个 db 内有 t_order_0 ~ t_order_7</text>
-    <text x="180" y="322" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">共 512 库 × 8 表 = 4096 张物理表</text>
-  </g>
+    <rect x="40" y="218" width="600" height="148" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="340" y="238" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">物理实例层（mysql-1 ~ mysql-8，每台只有 4 个 schema）</text>
 
-  <g>
-    <rect x="360" y="220" width="280" height="120" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
-    <text x="500" y="242" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">mysql-2 (10.0.0.2)</text>
-    <text x="500" y="262" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0512  db_0513  db_0514</text>
-    <text x="500" y="278" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0515  ...      db_1023</text>
-    <text x="500" y="305" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">物理上一台机器装 512 个 schema</text>
-    <text x="500" y="322" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">共享一份连接池即可</text>
+    <g font-family="monospace" font-size="11" fill="#0F6E56">
+      <rect x="60"  y="252" width="135" height="100" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="127" y="270" text-anchor="middle" font-weight="500">mysql-1 (10.0.0.1)</text>
+      <text x="70"  y="288">order_db_0  ──┐</text>
+      <text x="70"  y="304">order_db_1     │</text>
+      <text x="70"  y="320">order_db_2     │ × 32 表</text>
+      <text x="70"  y="336">order_db_3  ──┘</text>
+
+      <rect x="205" y="252" width="135" height="100" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="272" y="270" text-anchor="middle" font-weight="500">mysql-2 (10.0.0.2)</text>
+      <text x="215" y="288">order_db_0</text>
+      <text x="215" y="304">order_db_1</text>
+      <text x="215" y="320">order_db_2</text>
+      <text x="215" y="336">order_db_3</text>
+
+      <rect x="350" y="252" width="135" height="100" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="417" y="270" text-anchor="middle" font-weight="500">… mysql-3..7 …</text>
+      <text x="360" y="304" text-anchor="start">每台只装 4 个 schema</text>
+      <text x="360" y="320" text-anchor="start">每个 schema 32 张分表</text>
+      <text x="360" y="336" text-anchor="start">运维负担可控</text>
+
+      <rect x="495" y="252" width="135" height="100" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="562" y="270" text-anchor="middle" font-weight="500">mysql-8 (10.0.0.8)</text>
+      <text x="505" y="288">order_db_0</text>
+      <text x="505" y="304">order_db_1</text>
+      <text x="505" y="320">order_db_2</text>
+      <text x="505" y="336">order_db_3</text>
+    </g>
   </g>
 </svg>
 
-三个关键事实：
+注意几个事实，跟我上一版的描述对比修正：
 
-- **每个 `db_xxxx` 是真实存在的 MySQL database**（schema），不是抽象概念，`SHOW DATABASES` 直接能看到；
-- **同一台 MySQL 实例承载几百个 db**，每个 db 里再有几张分表，连接池只需要一份；
-- **应用代码永远拿 `shard_id` 去映射表查实例**，`Locate("user:1001", "t_order")` 返回 `db_0521.t_order_3`，业务无需关心它在哪台机器。
+- ✅ **物理 schema 数 ≪ 逻辑分片数**：8 台 × 4 schema = 32 个物理 db，但承载 **1024** 个逻辑分片（= 1024 张物理表）；
+- ✅ **同名 schema 在每台机器都存在**（`order_db_0` 在 8 台上各有一份），靠"实例 IP"区分归属；
+- ✅ **`SHOW DATABASES` 在每台只看到 4 个 db**，不是 128 个；
+- ✅ **应用查询只关心"表名"**，路由层把 `shard_id` 翻译成 `实例.schema.表`。
 
-扩容的本质就变成：**把某些 `db_xxxx` 从老实例搬到新实例**。db 名字、表名字、应用查询全都不变。
+`shard_id = 539` 的查找路径：
+
+```
+shard_id = 539
+├─ instance_idx = 539 / 128 = 4   →  mysql-5
+├─ schema_idx   = (539 / 32) % 4 = 16 % 4 = 0  →  order_db_0
+└─ table_idx    = 539 % 32 = 27   →  t_order_27
+
+最终落到：mysql-5 上的 order_db_0.t_order_27
+```
+
+扩容的本质：**把某些"实例 + schema"对应的 32 张分表整批搬到新机器**——不重命名表，只改"实例 IP"映射。
 
 ### 预分片省的是什么：迁移数据量
 
@@ -546,11 +587,11 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
   </g>
 
   <g>
-    <text x="40" y="200" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">预分片（1024 逻辑库）</text>
-    <text x="200" y="200" font-family="sans-serif" font-size="11" fill="#666">搬整库文件，不重算 hash，可用物理拷贝</text>
+    <text x="40" y="200" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">预分片（1024 张物理表）</text>
+    <text x="220" y="200" font-family="sans-serif" font-size="11" fill="#666">搬整表文件，不重算 hash，可用物理拷贝</text>
     <rect x="40" y="210" width="600" height="20" rx="4" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
     <rect x="40" y="210" width="300" height="20" rx="4" fill="#1D9E75"/>
-    <text x="190" y="224" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">迁移 50%（但是文件级整库搬）</text>
+    <text x="190" y="224" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">迁移 50%（但是文件级整表搬）</text>
   </g>
 
   <text x="340" y="260" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">关键差别在"怎么搬"，不在"搬多少"——预分片让搬迁从逐行变文件级</text>
@@ -581,7 +622,9 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
 
 ### 预分片实战：Go 代码逐步演进
 
-**① 最简版：纯 hash 路由（1024 库）**
+下面所有代码以"**8 实例 × 4 schema × 32 表 = 1024 分片**"的主流形态来写。
+
+**① shard_id：算出 0~1023 的逻辑分片号**
 
 ```go
 package sharding
@@ -594,123 +637,127 @@ import (
 
 const ShardCount = 1024 // 必须是 2 的幂
 
-type Router struct {
-	slotToDB [ShardCount]*sql.DB
-}
-
+// 把任意 sharding key 哈希到 0..1023
 func shardID(key string) uint32 {
-	return crc32.ChecksumIEEE([]byte(key)) & (ShardCount - 1) // & 1023 等价 % 1024
-}
-
-func (r *Router) DB(key string) *sql.DB { return r.slotToDB[shardID(key)] }
-func (r *Router) DBName(key string) string {
-	return fmt.Sprintf("db_%04d", shardID(key))
+	return crc32.ChecksumIEEE([]byte(key)) & (ShardCount - 1) // 等价 % 1024
 }
 ```
 
-**② 分库 + 分表（1024 库 × 8 表）**
+注意：返回的是**逻辑分片号**，不是物理库名——后者要再翻译一次。
 
-订单、消息这类大表再切一层。低 10 位选库、接下来 3 位选表，互不干扰。
+**② 把 shard_id 翻译成"实例 + schema + 表名"**
 
 ```go
-func (r *Router) Locate(key, logicalTable string) (dbName, tableName string, db *sql.DB) {
-	h := crc32.ChecksumIEEE([]byte(key))
-	dbIdx := h & 1023        // 低 10 位
-	tbIdx := (h >> 10) & 7   // 接下来 3 位
-	dbName = fmt.Sprintf("db_%04d", dbIdx)
-	tableName = fmt.Sprintf("%s_%d", logicalTable, tbIdx)
-	db = r.slotToDB[dbIdx]
-	return
+const (
+	InstanceCount = 8   // 物理 MySQL 实例数
+	SchemaPerNode = 4   // 每实例的 schema 数
+	TablePerSchema = 32 // 每 schema 的分表数
+	// 8 × 4 × 32 = 1024 = ShardCount
+)
+
+type Location struct {
+	InstanceIdx int    // 0..7
+	SchemaName  string // order_db_0..order_db_3
+	TableName   string // t_order_0..t_order_31
+}
+
+func (r *Router) Locate(key, logicalTable string) (Location, *sql.DB) {
+	sid := int(shardID(key))                    // 0..1023
+	instIdx := sid / (SchemaPerNode * TablePerSchema) // 0..7
+	schIdx := (sid / TablePerSchema) % SchemaPerNode  // 0..3
+	tbIdx := sid % TablePerSchema                     // 0..31
+
+	loc := Location{
+		InstanceIdx: instIdx,
+		SchemaName:  fmt.Sprintf("order_db_%d", schIdx),
+		TableName:   fmt.Sprintf("%s_%d", logicalTable, tbIdx),
+	}
+	return loc, r.instances[instIdx]
 }
 ```
 
-要点：**分片键只用一个**（如 `user_id`），保证同一实体的数据落到同一个 db+table，避免跨库 join 和分布式事务。
+举例：`shardID("user:1001") = 539` → instance 4 (mysql-5), schema `order_db_0`, table `t_order_27`。
 
-**③ 热更新路由表（扩容关键）**
+**关键点：连接池只跟"实例"挂钩，跟"schema"无关**——`*sql.DB` 是按 `mysql-1`..`mysql-8` 一共 8 份，SQL 里写 `order_db_0.t_order_27` 即可，不需要为每个 schema 单独建连接。
+
+**③ 路由表热更新（扩容关键）**
 
 扩容不能重启服务，映射表必须能原子替换。Go 1.19+ 用 `atomic.Pointer`：
 
 ```go
 import "sync/atomic"
 
-type shardMap struct {
-	slotToDB [1024]*sql.DB
-	version  int64
+type instMap struct {
+	instances [InstanceCount]*sql.DB // 8 份连接池
+	version   int64
 }
 
 type LiveRouter struct {
-	current atomic.Pointer[shardMap]
+	current atomic.Pointer[instMap]
 }
 
-func (r *LiveRouter) Update(m *shardMap) { r.current.Store(m) }
+func (r *LiveRouter) Update(m *instMap) { r.current.Store(m) }
 
-func (r *LiveRouter) DB(key string) *sql.DB {
-	slot := crc32.ChecksumIEEE([]byte(key)) & 1023
-	return r.current.Load().slotToDB[slot]
+func (r *LiveRouter) Pick(key string) *sql.DB {
+	sid := shardID(key)
+	idx := int(sid) / (SchemaPerNode * TablePerSchema)
+	return r.current.Load().instances[idx]
 }
 ```
 
 > ⚠️ `atomic.Store` **只是切流量瞬间的扣扳机动作**，前提是新老库数据已经完全追平。
 > 直接调 `Update(newMap)` 让老库的最近写入丢失——具体怎么保证一致性，看下一节。
 
-
 **④ 从 yaml 加载映射**
 
-生产里映射一般在 etcd / Nacos / apollo，最小可用版本是一份 yaml：
+生产里映射一般在 etcd / Nacos / apollo，最小可用版本是一份 yaml。**注意配置粒度是"实例承担哪些 shard_id 段"，不是"实例放哪些 schema"**——schema 名字是固定的 `order_db_0..3`，每台机器都建一样的 4 个：
 
 ```yaml
 instances:
-  mysql-1: "user:pwd@tcp(10.0.0.1:3306)/"
-  mysql-2: "user:pwd@tcp(10.0.0.2:3306)/"
-ranges:
-  - { instance: mysql-1, slots: [0, 511] }
-  - { instance: mysql-2, slots: [512, 1023] }
+  - { idx: 0, dsn: "user:pwd@tcp(10.0.0.1:3306)/", shards: [0,    127] }
+  - { idx: 1, dsn: "user:pwd@tcp(10.0.0.2:3306)/", shards: [128,  255] }
+  - { idx: 2, dsn: "user:pwd@tcp(10.0.0.3:3306)/", shards: [256,  383] }
+  # ...
+  - { idx: 7, dsn: "user:pwd@tcp(10.0.0.8:3306)/", shards: [896, 1023] }
 ```
 
 ```go
-type Config struct {
-	Instances map[string]string `yaml:"instances"`
-	Ranges    []struct {
-		Instance string `yaml:"instance"`
-		Slots    [2]int `yaml:"slots"`
-	} `yaml:"ranges"`
+type InstanceCfg struct {
+	Idx    int    `yaml:"idx"`
+	DSN    string `yaml:"dsn"`
+	Shards [2]int `yaml:"shards"` // 该实例承载的 shard_id 区间
 }
 
-func BuildShardMap(cfg *Config) (*shardMap, error) {
-	pool := make(map[string]*sql.DB, len(cfg.Instances))
-	for name, dsn := range cfg.Instances {
-		db, err := sql.Open("mysql", dsn)
+func BuildInstMap(cfgs []InstanceCfg) (*instMap, error) {
+	m := &instMap{}
+	for _, c := range cfgs {
+		db, err := sql.Open("mysql", c.DSN)
 		if err != nil {
 			return nil, err
 		}
-		pool[name] = db
-	}
-	m := &shardMap{}
-	for _, r := range cfg.Ranges {
-		for s := r.Slots[0]; s <= r.Slots[1]; s++ {
-			m.slotToDB[s] = pool[r.Instance]
-		}
+		m.instances[c.Idx] = db
 	}
 	return m, nil
 }
 ```
 
-扩容 = 只改 yaml 的 ranges，再触发 `Update`。
+扩容 = 改 yaml（比如把 mysql-1 的 `[0,127]` 拆成 `[0,63]` 留在 mysql-1、`[64,127]` 给新加的 mysql-9），再触发 `Update`。
 
-**⑤ 一次性预建 1024 个库表**
+**⑤ 一次性预建 4 schema × 32 表（每台机器执行一次）**
 
-预分片的"预"也体现在 DDL 一次性做完，扩容时只搬数据不建 schema：
+预分片的"预"也体现在 DDL 一次性做完——**每台机器都建一样的 4 个 schema 和 32 张表**，扩容时只搬数据不再建 schema：
 
 ```go
-func InitSchema(instance *sql.DB, slots []int, tableCount int) error {
-	for _, slot := range slots {
-		dbName := fmt.Sprintf("db_%04d", slot)
+// 在每台 mysql 实例启动时调用一次（幂等）
+func InitSchema(instance *sql.DB) error {
+	for s := 0; s < SchemaPerNode; s++ {
+		dbName := fmt.Sprintf("order_db_%d", s)
 		if _, err := instance.Exec(
-			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s DEFAULT CHARSET utf8mb4", dbName),
+			"CREATE DATABASE IF NOT EXISTS " + dbName + " DEFAULT CHARSET utf8mb4",
 		); err != nil {
 			return err
 		}
-		for t := 0; t < tableCount; t++ {
+		for t := 0; t < TablePerSchema; t++ {
 			ddl := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s.t_order_%d (
 				order_id   BIGINT PRIMARY KEY,
 				user_id    BIGINT NOT NULL,
@@ -727,6 +774,8 @@ func InitSchema(instance *sql.DB, slots []int, tableCount int) error {
 }
 ```
 
+8 台机器各自跑一次 → 总共 8 × 4 × 32 = **1024 张物理表**就位，对应 1024 个逻辑分片。
+
 ### 扩容六阶段：怎么保证一致性
 
 只切路由表会丢数据——切换的瞬间，老库可能还有刚写入但未同步到新库的记录。生产里的标准做法是 **"双写 + 追平 + 校验 + 切读 + 切写 + 回收"** 六阶段：
@@ -737,7 +786,7 @@ func InitSchema(instance *sql.DB, slots []int, tableCount int) error {
       <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
   </defs>
-  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">分片迁移六阶段（以 db_0512 从 mysql-2 搬到 mysql-3 为例）</text>
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">分片迁移六阶段（以 shard 0..127 从 mysql-1 搬到新加的 mysql-9 为例）</text>
 
   <g font-family="sans-serif" font-size="11">
     <rect x="20"  y="60" width="100" height="60" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
@@ -794,12 +843,14 @@ func InitSchema(instance *sql.DB, slots []int, tableCount int) error {
 
 #### 各阶段在做什么
 
-1. **存量同步**：在新实例 mysql-3 上建好 `db_0512` 的 schema，用 xtrabackup / mysqldump / DTS 把存量数据物理或逻辑拷过去。这是耗时最长的一步。
-2. **双写**：路由层进入"过渡态"，对 `db_0512` 的写请求**同时**发到老库和新库。老库的 binlog 同步任务保留兜底。
-3. **追平 & 校验**：等订阅老库 binlog 的同步任务把双写之前的增量也补完，再用 `pt-table-checksum` 或自研脚本逐表校验行数、checksum，确认两库完全一致。
-4. **切读**：路由层把 `db_0512` 的**读流量**切到新库。这一步出问题（新库性能不行、有数据漂移）随时能切回——写还在双写。
-5. **切写**：观察一段时间稳定后，调 `atomic.Store` 把 `db_0512` 的写也切到只写新库。**这才是 `Update(newMap)` 真正起作用的瞬间**。
-6. **回收**：双写关闭，老库上的 `db_0512` 保留一段时间（一般 1~7 天）作回滚兜底，确认无问题后 drop。
+以"把 mysql-1 上 shard 0..127（4 个 schema × 32 表的一半）迁到新加的 mysql-9"为例：
+
+1. **存量同步**：在新实例 mysql-9 上跑 `InitSchema` 建好 4 个 schema × 32 表（结构完全一样），用 xtrabackup / mysqldump / DTS 把 shard 0..127 对应的物理表数据拷过去。这是耗时最长的一步。
+2. **双写**：路由层进入"过渡态"，对 shard 0..127 的写请求**同时**发到 mysql-1 和 mysql-9。mysql-1 的 binlog 同步任务保留兜底。
+3. **追平 & 校验**：等 binlog 同步任务把双写之前的增量补完，再用 `pt-table-checksum` 或自研脚本逐表校验行数、checksum，确认两边完全一致。
+4. **切读**：路由层把 shard 0..127 的**读流量**切到 mysql-9。这一步出问题（性能不行、有数据漂移）随时能切回——写还在双写。
+5. **切写**：观察一段时间稳定后，调 `atomic.Store` 把 shard 0..127 的写也切到只写 mysql-9。**这才是 `Update(newMap)` 真正起作用的瞬间**。
+6. **回收**：双写关闭，mysql-1 上 shard 0..127 对应的物理表保留一段时间（一般 1~7 天）作回滚兜底，确认无问题后 `DROP TABLE`（或整库 `DROP DATABASE` 如果整个 schema 都搬走了）。
 
 #### 双写代码片段
 
@@ -839,7 +890,7 @@ func (d *DualWriter) Exec(query string, args ...any) (sql.Result, error) {
 #### 切换的"瞬间"到底有多瞬间
 
 只有第 5 步（切写）需要锁写，时间窗口是：
-1. 给 `db_0512` 加全局只读（`FLUSH TABLES WITH READ LOCK` 或应用层挡写）；
+1. 给 shard 0..127 涉及的表加只读（应用层挡写或 `LOCK TABLES ... READ`）；
 2. 等待最后几条同步 binlog 追平（通常 < 1 秒）；
 3. `liveRouter.Update(newMap)`；
 4. 解锁。
