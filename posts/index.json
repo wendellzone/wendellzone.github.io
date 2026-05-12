@@ -133,16 +133,5 @@
     ],
     "summary": "用菜市场传菜窗口类比 + 操作矩阵 + 状态机图，把 channel 一次讲透",
     "readingTime": 2
-  },
-  {
-    "slug": "plantuml-in-markdown",
-    "title": "在 Markdown 里直接写 PlantUML",
-    "date": "2026-05-09",
-    "tags": [
-      "工具",
-      "前端"
-    ],
-    "summary": "用 marked 自定义 renderer + plantuml.com 的 /svg/ 服务，让 ```plantuml 代码块像普通代码一样被实时渲染。",
-    "readingTime": 2
   }
 ]
