@@ -120,8 +120,8 @@
       "MySQL",
       "Go"
     ],
-    "summary": "把一致性哈希、Redis 16384 slot、MySQL 桶预分片串成同一条主线——都是在 key 和物理节点之间塞一层稳定的中间层；新增桶预分片与一致性哈希的正面对比。",
-    "readingTime": 16
+    "summary": "把一致性哈希、Redis 16384 slot、MySQL 桶预分片串成同一条主线——都是在 key 和物理节点之间塞一层稳定的中间层；含桶预分片与一致性哈希的对比、三层路由全景图。",
+    "readingTime": 18
   },
   {
     "slug": "golang-channel-quickstart",

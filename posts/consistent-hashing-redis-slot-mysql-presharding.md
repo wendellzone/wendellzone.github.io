@@ -2,8 +2,9 @@
 title: 一致性哈希、Redis slot 与 MySQL 预分片
 date: 2026-05-11
 tags: [后端, 分布式, Redis, MySQL, Go]
-summary: 把一致性哈希、Redis 16384 slot、MySQL 桶预分片串成同一条主线——都是在 key 和物理节点之间塞一层稳定的中间层；新增桶预分片与一致性哈希的正面对比。
+summary: 把一致性哈希、Redis 16384 slot、MySQL 桶预分片串成同一条主线——都是在 key 和物理节点之间塞一层稳定的中间层；含桶预分片与一致性哈希的对比、三层路由全景图。
 ---
+
 
 
 
@@ -353,7 +354,7 @@ MySQL 预分片的思路和 Redis Cluster 一模一样，只是换了个名字�
 
 ```
 key → bucket：永远不变（hash & 1023）
-bucket → 实例.schema.表：可在线变更（路由表维护）
+bucket → 实例.database.表：可在线变更（路由表维护）
 ```
 
 和 Redis 唯一的差别：slot→node 由 gossip 自动维护，而 MySQL 的 bucket→实例映射靠 yaml/etcd 由 DBA 手工触发。其它原理完全一致。
@@ -412,15 +413,73 @@ bucket → 实例.schema.表：可在线变更（路由表维护）
 ### 三个设计决策
 
 1. **桶数取 2 的幂**（1024、2048、4096）。`& (B-1)` 等价 `% B` 但快一个量级。
-2. **物理 schema 数 ≪ 桶数**——1024 主要落在"表后缀"维度。在一台 MySQL 上建 512 个 schema 会让 `table_open_cache` 直接顶天。主流形态是 **8 实例 × 4 schema × 32 表 = 1024**：
+2. **物理 database 数 ≪ 桶数**——1024 主要落在"表后缀"维度。在一台 MySQL 上建 512 个 database 会让 `table_open_cache` 直接顶天。主流形态是 **8 实例 × 4 database × 32 表 = 1024**：
 
-| 方案 | 实例 × schema × 表 | 说明 |
+| 方案 | 实例 × database × 表 | 说明 |
 |---|---|---|
 | 极简 | 8 × 1 × 128 | metadata 开销最小 |
-| **均衡** ✅ | **8 × 4 × 32** | **schema 粒度方便备份/迁移/权限隔离** |
-| 重 schema | 8 × 32 × 4 | 每 schema 业务边界明显时用 |
+| **均衡** ✅ | **8 × 4 × 32** | **database 粒度方便备份/迁移/权限隔离** |
+| 重 database | 8 × 32 × 4 | 每 database 业务边界明显时用 |
 
-3. **bucket → 实例.schema.表 是可变映射**，扩容只改这张表，业务公式不动。
+3. **bucket → 实例.database.表 是可变映射**，扩容只改这张表，业务公式不动。
+
+<svg viewBox="0 0 680 360" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="dep-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">三层路由：业务看 1024 个桶，实际只在 8 台机器上</text>
+
+  <g>
+    <rect x="40" y="50" width="600" height="46" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+    <text x="340" y="71" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">应用层</text>
+    <text x="340" y="88" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">Locate("user:1001", "t_order")  →  返回 (db_handle, "order_db_0.t_order_27")</text>
+  </g>
+  <path d="M340 96 L 340 118" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+
+  <g>
+    <rect x="40" y="122" width="600" height="64" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="340" y="142" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">路由层（拆 bucket）</text>
+    <text x="340" y="160" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">bucket = hash(user_id) &amp; 1023            instance_idx = bucket / 128</text>
+    <text x="340" y="176" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">db_idx = (bucket / 32) % 4                table_idx    = bucket % 32</text>
+  </g>
+  <path d="M340 186 L 340 208" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+
+  <g>
+    <rect x="40" y="212" width="600" height="130" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="340" y="232" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">物理实例层（每台机器都建相同的 4 个 database × 32 张表）</text>
+
+    <g font-family="monospace" font-size="11" fill="#0F6E56">
+      <rect x="56"  y="246" width="142" height="84" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="127" y="263" text-anchor="middle" font-weight="500">mysql-1 (10.0.0.1)</text>
+      <text x="68"  y="282">order_db_0</text>
+      <text x="68"  y="298">order_db_1</text>
+      <text x="68"  y="314">order_db_2 × 32 表</text>
+      <text x="68"  y="328" fill="#888">…</text>
+
+      <rect x="206" y="246" width="142" height="84" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="277" y="263" text-anchor="middle" font-weight="500">mysql-2 (10.0.0.2)</text>
+      <text x="218" y="282">order_db_0</text>
+      <text x="218" y="298">order_db_1</text>
+      <text x="218" y="314">order_db_2 × 32 表</text>
+      <text x="218" y="328" fill="#888">…</text>
+
+      <rect x="356" y="246" width="142" height="84" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5" stroke-dasharray="3 3"/>
+      <text x="427" y="263" text-anchor="middle" font-weight="500" fill="#888">mysql-3 ~ mysql-7</text>
+      <text x="427" y="288" text-anchor="middle" fill="#888">… 同样布局 …</text>
+      <text x="427" y="312" text-anchor="middle" fill="#888">每台 4 db × 32 表</text>
+
+      <rect x="506" y="246" width="142" height="84" rx="6" fill="#fff" stroke="#0F6E56" stroke-width="0.5"/>
+      <text x="577" y="263" text-anchor="middle" font-weight="500">mysql-8 (10.0.0.8)</text>
+      <text x="518" y="282">order_db_0</text>
+      <text x="518" y="298">order_db_1</text>
+      <text x="518" y="314">order_db_2 × 32 表</text>
+      <text x="518" y="328" fill="#888">…</text>
+    </g>
+  </g>
+</svg>
+
 
 ### 一致性哈希 vs 桶预分片
 
@@ -461,13 +520,13 @@ func bucketOf(key string) uint32 {
 }
 ```
 
-**② 把 bucket 翻译成"实例 + schema + 表名"**
+**② 把 bucket 翻译成"实例 + database + 表名"**
 
 ```go
 const (
 	InstanceCount  = 8  // 物理 MySQL 实例数
-	SchemaPerNode  = 4  // 每实例的 schema 数
-	TablePerSchema = 32 // 每 schema 的分表数
+	DBPerInstance  = 4  // 每实例的 database 数
+	TablePerDB     = 32 // 每 database 的分表数
 	// 8 × 4 × 32 = 1024 = BucketCount
 )
 
@@ -477,24 +536,24 @@ type Router struct {
 
 type Location struct {
 	InstanceIdx int
-	SchemaName  string
+	DBName      string
 	TableName   string
 }
 
 func (r *Router) Locate(key, logicalTable string) (Location, *sql.DB) {
 	bid := int(bucketOf(key))
-	instIdx := bid / (SchemaPerNode * TablePerSchema)
-	schIdx := (bid / TablePerSchema) % SchemaPerNode
-	tbIdx := bid % TablePerSchema
+	instIdx := bid / (DBPerInstance * TablePerDB)
+	dbIdx  := (bid / TablePerDB) % DBPerInstance
+	tbIdx  := bid % TablePerDB
 	return Location{
 		InstanceIdx: instIdx,
-		SchemaName:  fmt.Sprintf("order_db_%d", schIdx),
+		DBName:      fmt.Sprintf("order_db_%d", dbIdx),
 		TableName:   fmt.Sprintf("%s_%d", logicalTable, tbIdx),
 	}, r.instances[instIdx]
 }
 ```
 
-举例 `bucket=539` → mysql-5 / `order_db_0` / `t_order_27`。**连接池只跟实例挂钩，跟 schema 无关**——8 份 `*sql.DB`，SQL 里写完整限定名 `order_db_0.t_order_27` 即可。
+举例 `bucket=539` → mysql-5 / `order_db_0` / `t_order_27`。**连接池只跟实例挂钩，跟 database 无关**——8 份 `*sql.DB`，SQL 里写完整限定名 `order_db_0.t_order_27` 即可。
 
 **③ 路由表热更新（扩容关键）**
 
