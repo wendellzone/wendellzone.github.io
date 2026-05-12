@@ -21,11 +21,12 @@ rectangle "Phase 1\n研究 + 规划" as P1 #e3f2fd
 rectangle "Phase 2\n实现" as P2 #fff3e0
 rectangle "Phase 3\n构建 + 测试" as P3 #f3e5f5
 rectangle "Phase 4\n评测 (10 道题)" as P4 #e8f5e9
+rectangle "交付" as DONE #eeeeee
 
 P1 -down-> P2 : API 摸清\n工具清单定好
 P2 -down-> P3 : Zod/Pydantic\n+ 错误处理
 P3 -down-> P4 : Inspector 过\n编译过
-P4 -down-> [*] : XML 评测集交付
+P4 -down-> DONE : XML 评测集交付
 
 note right of P1
   读 MCP 协议
@@ -121,12 +122,12 @@ skill 直接给出推荐：
 @startuml
 skinparam backgroundColor transparent
 
-rectangle "语言" as L {
+package "语言" {
   rectangle "TypeScript\n(首选)" as TS #c8e6c9
   rectangle "Python" as PY #fff9c4
 }
 
-rectangle "Transport" as T {
+package "Transport" {
   rectangle "Streamable HTTP\n(远程, 无状态 JSON)" as H #c8e6c9
   rectangle "stdio\n(本地)" as S #fff9c4
 }
