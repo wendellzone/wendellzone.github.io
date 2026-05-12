@@ -35,6 +35,10 @@ agent_created: true
 
 **始终调用 `scripts/publish.py`，不要手动改 markdown + index.json + git。** 脚本是保证 `posts/*.md` 与 `posts/index.json` 一致性的唯一入口。
 
+**脚本路径**：`publish.py` 放在 **skill 目录** 而非博客仓库里，调用时用绝对路径：
+`/Users/yunlian/.workbuddy/skills/blog-post/scripts/publish.py`
+工作目录要 `cd` 到博客仓库根（`~/WorkBuddy/2026-05-09-task-1/wendellzone-blog/` 或 `BLOG_REPO`），脚本以当前工作目录定位仓库。下文示例为简洁起见写成 `scripts/publish.py`，实际请替换成上面的绝对路径。
+
 ### 新建文章
 
 ```bash

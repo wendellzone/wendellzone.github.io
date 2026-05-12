@@ -64,6 +64,23 @@ Alice -> Bob: 你好
 
 前端会异步拉 `plantuml.com/plantuml/svg/<encoded>` 回显 SVG，带 8 秒超时和失败降级提示。渲染不受构建影响，访客浏览器直连 plantuml.com。
 
+### Mermaid
+
+用 ` ```mermaid ` 围栏，前端用 mermaid@10.9.1 本地渲染，零外部网络请求：
+
+```
+```mermaid
+flowchart LR
+  A[用户] --> B[后端]
+  B --> C{鉴权}
+  C -->|通过| D[业务逻辑]
+```
+```
+
+支持 flowchart / sequenceDiagram / classDiagram / stateDiagram / erDiagram / gantt / pie 等。主题跟随站点日夜模式自动切换。
+
+PlantUML 与 Mermaid 选择建议：UML 类图、ER 图、复杂时序图选 PlantUML；流程、状态、甘特、饼图、口语化时序选 Mermaid（更轻量、不依赖外部服务）。
+
 ### 跨文章链接
 
 hash 路由，不要用 `./other.md`：
