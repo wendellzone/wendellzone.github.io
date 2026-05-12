@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
 <!-- 主题脚本：防 FOUC，必须在 <style> 之前运行 -->
 <script>
@@ -376,6 +377,17 @@
     border-radius: 4px; font-family: monospace; white-space: pre-wrap;
   }
 
+  /* Mermaid 块 */
+  .mermaid-block {
+    margin: 14px 0; padding: 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; text-align: center;
+    min-height: 60px;
+    overflow-x: auto;
+  }
+  .mermaid-block svg { max-width: 100%; height: auto; }
+  .mermaid-ph { color: var(--fg-muted); font-size: 12px; padding: 20px; }
+
   /* Footer */
   footer {
     max-width: var(--max-width);
@@ -529,6 +541,37 @@ async function hydratePlantUML(root) {
 }
 
 /* ========================================================
+   Mermaid 渲染（本地 lib，零网络）
+======================================================== */
+let _mermaidInited = false;
+function initMermaid() {
+  if (_mermaidInited || typeof mermaid === 'undefined') return;
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: dark ? 'dark' : 'default',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
+  });
+  _mermaidInited = true;
+}
+async function hydrateMermaid(root) {
+  const blocks = [...root.querySelectorAll('.mermaid-block[data-code]')];
+  if (!blocks.length) return;
+  initMermaid();
+  for (const [i, el] of blocks.entries()) {
+    const code = decodeURIComponent(escape(atob(el.dataset.code)));
+    const id = 'm' + Date.now().toString(36) + i;
+    try {
+      const { svg } = await mermaid.render(id, code);
+      el.innerHTML = svg;
+    } catch (e) {
+      el.innerHTML = `<div class="plantuml-err">Mermaid 渲染失败：${escapeHtml(e.message || String(e))}</div>`;
+    }
+  }
+}
+
+/* ========================================================
    Markdown 渲染（带 PlantUML 占位 + 代码高亮 + 标题 id）
 ======================================================== */
 const _slugCount = {};
@@ -549,6 +592,10 @@ function buildRenderer() {
     if (l === 'plantuml' || l === 'puml') {
       const b64 = btoa(unescape(encodeURIComponent(code)));
       return `<div class="plantuml-block" data-code="${b64}"><div class="plantuml-ph">PlantUML 渲染中…</div></div>`;
+    }
+    if (l === 'mermaid') {
+      const b64 = btoa(unescape(encodeURIComponent(code)));
+      return `<div class="mermaid-block" data-code="${b64}"><div class="mermaid-ph">Mermaid 渲染中…</div></div>`;
     }
     let html;
     try {
@@ -887,6 +934,7 @@ async function renderPost(slug) {
     `;
     document.title = (meta?.title || slug) + ' · Wendell\'s Zone';
     hydratePlantUML(document.getElementById('article'));
+    hydrateMermaid(document.getElementById('article'));
     bindArticleAnchors(document.getElementById('article'));
     buildToc(document.getElementById('article'));
     window.scrollTo(0, 0);
@@ -968,6 +1016,8 @@ async function renderSkillDetail(slug) {
       </div>
       <article class="markdown" id="article">${renderMarkdown(body)}</article>
     `;
+    hydratePlantUML(document.getElementById('article'));
+    hydrateMermaid(document.getElementById('article'));
     bindArticleAnchors(document.getElementById('article'));
     buildToc(document.getElementById('article'));
     window.scrollTo(0, 0);
@@ -1010,6 +1060,15 @@ function applyTheme(theme) {
   if (light && dark) {
     light.disabled = theme === 'dark';
     dark.disabled  = theme !== 'dark';
+  }
+  // 切主题时把所有 mermaid 块标记为待重渲
+  const article = document.getElementById('article');
+  if (article && _mermaidInited) {
+    _mermaidInited = false;
+    article.querySelectorAll('.mermaid-block[data-code]').forEach(el => {
+      el.innerHTML = '<div class="mermaid-ph">Mermaid 重新渲染中…</div>';
+    });
+    hydrateMermaid(article);
   }
 }
 function currentTheme() {
