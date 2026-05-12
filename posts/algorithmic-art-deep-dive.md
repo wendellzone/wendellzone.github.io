@@ -68,19 +68,22 @@ stop
 @startuml
 skinparam backgroundColor transparent
 
-rectangle "常规做法" as A {
+package "常规做法" {
   rectangle "收到需求" as A1
   rectangle "直接写 p5.js" as A2
   rectangle "调参碰运气" as A3
-  A1 -down-> A2 -down-> A3
+  A1 -down-> A2
+  A2 -down-> A3
 }
 
-rectangle "skill 做法" as B {
+package "skill 做法" {
   rectangle "收到需求" as B1
-  rectangle "**写哲学 .md**" as B2 #fff59d
+  rectangle "写哲学 .md" as B2 #fff59d
   rectangle "推演概念种子" as B3
   rectangle "按哲学写 p5.js" as B4
-  B1 -down-> B2 -down-> B3 -down-> B4
+  B1 -down-> B2
+  B2 -down-> B3
+  B3 -down-> B4
 }
 
 note bottom of A3
@@ -176,31 +179,24 @@ noiseSeed(seed);
 @startuml
 skinparam backgroundColor transparent
 
-rectangle "viewer.html (模板)" as T {
-  rectangle "🔒 固定部分" as F #ffcdd2
-  rectangle "🔄 可变部分" as V #c8e6c9
+package "viewer.html (模板)" {
+  rectangle "固定部分" as F #ffcdd2
+  rectangle "可变部分" as V #c8e6c9
 }
 
-rectangle "固定" as FD #ffcdd2 {
-  note as FN
-    - 布局结构
-    - Anthropic 配色/字体
-    - Seed 面板 (prev/next/random/jump)
-    - Actions (regenerate/reset/download)
-  end note
-}
+note right of F
+  - 布局结构
+  - Anthropic 配色/字体
+  - Seed 面板 (prev/next/random/jump)
+  - Actions (regenerate/reset/download)
+end note
 
-rectangle "可变" as VD #c8e6c9 {
-  note as VN
-    - p5.js 算法本身
-    - parameters 对象
-    - 参数控件（滑块/颜色选择器）
-    - 是否需要 Colors 面板
-  end note
-}
-
-F -right-> FD
-V -right-> VD
+note right of V
+  - p5.js 算法本身
+  - parameters 对象
+  - 参数控件（滑块/颜色选择器）
+  - 是否需要 Colors 面板
+end note
 @enduml
 ```
 
