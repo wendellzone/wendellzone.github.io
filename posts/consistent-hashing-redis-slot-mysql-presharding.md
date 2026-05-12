@@ -7,6 +7,7 @@ summary: 从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个�
 
 
 
+
 后端做数据分片，几乎一定会碰到三个词：**一致性哈希**、**Redis slot**、**MySQL 预分片**。它们看起来各是各的，其实底层思路一脉相承——都是在"key 到物理节点"之间塞一个稳定的中间层，让物理扩缩容不再牵连全量数据。
 
 这篇博客把三件事串起来讲清楚。
@@ -319,6 +320,62 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
 2. **路由层维护映射表**：`db_xxxx → 物理实例 IP`。扩容就是搬库 + 改映射表 + 切流量，业务代码不动。
 3. **分库分表两层**：对大表（订单、消息）在 db 内再切 N 张表。常见配置：**32 库 × 32 表 = 1024 个物理表**，或 **1024 库 × 8 表**。
 
+### 物理部署：1024 个逻辑库到底放在哪
+
+容易让人困惑的点：1024 不是 1024 台 MySQL，而是 **1024 个 db schema 整建制部署到 N 台机器上**。早期 N 可能只有 2，每台塞 512 个库；后期可以是 8、16，每台塞 128、64。
+
+<svg viewBox="0 0 680 360" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="dep-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">应用看到的 1024 个分片 → 实际只在 2 台机器上</text>
+
+  <g>
+    <rect x="40" y="50" width="600" height="50" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+    <text x="340" y="72" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">应用层（业务代码）</text>
+    <text x="340" y="90" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">shard_id = hash(user_id) &amp; 1023  →  Locate("user:1001", "t_order")</text>
+  </g>
+
+  <path d="M340 100 L 340 130" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+
+  <g>
+    <rect x="40" y="135" width="600" height="42" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="340" y="155" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#854F0B">路由层（slot → 物理实例 映射表）</text>
+    <text x="340" y="170" text-anchor="middle" font-family="monospace" font-size="11" fill="#854F0B">slot 0..511 → mysql-1   ·   slot 512..1023 → mysql-2</text>
+  </g>
+
+  <path d="M180 177 L 180 215" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+  <path d="M500 177 L 500 215" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
+
+  <g>
+    <rect x="40" y="220" width="280" height="120" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="180" y="242" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">mysql-1 (10.0.0.1)</text>
+    <text x="180" y="262" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0000  db_0001  db_0002</text>
+    <text x="180" y="278" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0003  ...      db_0511</text>
+    <text x="180" y="305" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">每个 db 内有 t_order_0 ~ t_order_7</text>
+    <text x="180" y="322" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">共 512 库 × 8 表 = 4096 张物理表</text>
+  </g>
+
+  <g>
+    <rect x="360" y="220" width="280" height="120" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="500" y="242" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#0F6E56">mysql-2 (10.0.0.2)</text>
+    <text x="500" y="262" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0512  db_0513  db_0514</text>
+    <text x="500" y="278" text-anchor="middle" font-family="monospace" font-size="11" fill="#0F6E56">db_0515  ...      db_1023</text>
+    <text x="500" y="305" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">物理上一台机器装 512 个 schema</text>
+    <text x="500" y="322" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0F6E56">共享一份连接池即可</text>
+  </g>
+</svg>
+
+三个关键事实：
+
+- **每个 `db_xxxx` 是真实存在的 MySQL database**（schema），不是抽象概念，`SHOW DATABASES` 直接能看到；
+- **同一台 MySQL 实例承载几百个 db**，每个 db 里再有几张分表，连接池只需要一份；
+- **应用代码永远拿 `shard_id` 去映射表查实例**，`Locate("user:1001", "t_order")` 返回 `db_0521.t_order_3`，业务无需关心它在哪台机器。
+
+扩容的本质就变成：**把某些 `db_xxxx` 从老实例搬到新实例**。db 名字、表名字、应用查询全都不变。
+
 ### 预分片省的是什么：迁移数据量
 
 预分片的所有收益，都收敛到一件事——**最小化迁移数据量**。看一组直观的数字（2 台扩到 4 台）：
@@ -447,7 +504,9 @@ func (r *LiveRouter) DB(key string) *sql.DB {
 }
 ```
 
-扩容时：新实例追同步 → 构造新 `shardMap`（一半 slot 指新机器）→ `Update(newMap)` → 老连接逐步释放。**业务代码一行不改。**
+> ⚠️ `atomic.Store` **只是切流量瞬间的扣扳机动作**，前提是新老库数据已经完全追平。
+> 直接调 `Update(newMap)` 让老库的最近写入丢失——具体怎么保证一致性，看下一节。
+
 
 **④ 从 yaml 加载映射**
 
@@ -522,11 +581,124 @@ func InitSchema(instance *sql.DB, slots []int, tableCount int) error {
 }
 ```
 
-### 扩容流程（最小停机）
+### 扩容六阶段：怎么保证一致性
 
-1. DBA 在新实例上建好目标 db，用 `mysqldump` 或 `gh-ost`/DTS 做存量 + binlog 增量同步；
-2. 同步追平后，短暂锁写 → 原子替换路由表 `slotToInstance` → 放流量；
-3. 老实例上被搬走的库保留一段时间作回滚，确认无误后 drop。
+只切路由表会丢数据——切换的瞬间，老库可能还有刚写入但未同步到新库的记录。生产里的标准做法是 **"双写 + 追平 + 校验 + 切读 + 切写 + 回收"** 六阶段：
+
+<svg viewBox="0 0 680 240" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="mig-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <text x="340" y="28" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">分片迁移六阶段（以 db_0512 从 mysql-2 搬到 mysql-3 为例）</text>
+
+  <g font-family="sans-serif" font-size="11">
+    <rect x="20"  y="60" width="100" height="60" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+    <text x="70"  y="82"  text-anchor="middle" font-weight="500" fill="#3C3489">1. 存量同步</text>
+    <text x="70"  y="100" text-anchor="middle" fill="#3C3489">DTS / xtrabackup</text>
+
+    <rect x="130" y="60" width="100" height="60" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="180" y="82"  text-anchor="middle" font-weight="500" fill="#854F0B">2. 双写</text>
+    <text x="180" y="100" text-anchor="middle" fill="#854F0B">老主写 + 同步新</text>
+
+    <rect x="240" y="60" width="100" height="60" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="290" y="82"  text-anchor="middle" font-weight="500" fill="#854F0B">3. 追平 &amp; 校验</text>
+    <text x="290" y="100" text-anchor="middle" fill="#854F0B">checksum 比对</text>
+
+    <rect x="350" y="60" width="100" height="60" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="400" y="82"  text-anchor="middle" font-weight="500" fill="#0F6E56">4. 切读</text>
+    <text x="400" y="100" text-anchor="middle" fill="#0F6E56">读路由 → 新</text>
+
+    <rect x="460" y="60" width="100" height="60" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="510" y="82"  text-anchor="middle" font-weight="500" fill="#0F6E56">5. 切写</text>
+    <text x="510" y="100" text-anchor="middle" fill="#0F6E56">atomic.Store</text>
+
+    <rect x="570" y="60" width="90"  height="60" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="615" y="82"  text-anchor="middle" font-weight="500" fill="#0F6E56">6. 回收</text>
+    <text x="615" y="100" text-anchor="middle" fill="#0F6E56">drop 老库</text>
+  </g>
+
+  <g>
+    <path d="M120 90 L 130 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#mig-arrow)"/>
+    <path d="M230 90 L 240 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#mig-arrow)"/>
+    <path d="M340 90 L 350 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#mig-arrow)"/>
+    <path d="M450 90 L 460 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#mig-arrow)"/>
+    <path d="M560 90 L 570 90" fill="none" stroke="#888" stroke-width="0.8" marker-end="url(#mig-arrow)"/>
+  </g>
+
+  <g font-family="sans-serif" font-size="11" fill="#666">
+    <text x="40"  y="155">写：老库</text>
+    <text x="150" y="155">写：老 + 新</text>
+    <text x="260" y="155">写：老 + 新</text>
+    <text x="370" y="155">写：老 + 新</text>
+    <text x="480" y="155">写：仅新库</text>
+    <text x="585" y="155">写：仅新库</text>
+
+    <text x="40"  y="180">读：老库</text>
+    <text x="150" y="180">读：老库</text>
+    <text x="260" y="180">读：老库</text>
+    <text x="370" y="180">读：新库</text>
+    <text x="480" y="180">读：新库</text>
+    <text x="585" y="180">读：新库</text>
+  </g>
+
+  <text x="340" y="220" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#A32D2D">关键：先双写再切读，最后切写——任何一步出问题都能回滚</text>
+</svg>
+
+#### 各阶段在做什么
+
+1. **存量同步**：在新实例 mysql-3 上建好 `db_0512` 的 schema，用 xtrabackup / mysqldump / DTS 把存量数据物理或逻辑拷过去。这是耗时最长的一步。
+2. **双写**：路由层进入"过渡态"，对 `db_0512` 的写请求**同时**发到老库和新库。老库的 binlog 同步任务保留兜底。
+3. **追平 & 校验**：等订阅老库 binlog 的同步任务把双写之前的增量也补完，再用 `pt-table-checksum` 或自研脚本逐表校验行数、checksum，确认两库完全一致。
+4. **切读**：路由层把 `db_0512` 的**读流量**切到新库。这一步出问题（新库性能不行、有数据漂移）随时能切回——写还在双写。
+5. **切写**：观察一段时间稳定后，调 `atomic.Store` 把 `db_0512` 的写也切到只写新库。**这才是 `Update(newMap)` 真正起作用的瞬间**。
+6. **回收**：双写关闭，老库上的 `db_0512` 保留一段时间（一般 1~7 天）作回滚兜底，确认无问题后 drop。
+
+#### 双写代码片段
+
+过渡期的"双写"通常做在路由层而不是业务层，业务侧仍然只看到一个 `db.Exec`：
+
+```go
+type DualWriter struct {
+	primary   *sql.DB // 老库（写入主路径）
+	secondary *sql.DB // 新库（影子写）
+	enabled   atomic.Bool
+}
+
+func (d *DualWriter) Exec(query string, args ...any) (sql.Result, error) {
+	res, err := d.primary.Exec(query, args...)
+	if err != nil {
+		return res, err
+	}
+	if d.enabled.Load() {
+		// 影子写：失败只告警，不影响主链路
+		go func() {
+			if _, e := d.secondary.Exec(query, args...); e != nil {
+				log.Errorw("dual_write_failed", "err", e, "sql", query)
+				metrics.DualWriteErr.Inc()
+			}
+		}()
+	}
+	return res, nil
+}
+```
+
+要点：
+- **以老库为主**，新库写失败只告警不阻塞——双写阶段任何异常都不能影响在线交易；
+- **异步影子写**保证主路径延迟不变；
+- 配合 binlog 同步**做兜底**（哪怕影子写丢了几条，binlog 也会补回）；
+- 校验阶段必须发现并修复差异，否则切读后会暴露不一致。
+
+#### 切换的"瞬间"到底有多瞬间
+
+只有第 5 步（切写）需要锁写，时间窗口是：
+1. 给 `db_0512` 加全局只读（`FLUSH TABLES WITH READ LOCK` 或应用层挡写）；
+2. 等待最后几条同步 binlog 追平（通常 < 1 秒）；
+3. `liveRouter.Update(newMap)`；
+4. 解锁。
+
+整个动作通常 **100ms ~ 1s**，业务侧表现为这部分用户极短时间的 `lock wait timeout` 重试，几乎无感。
 
 ### 容易踩的三个坑
 
