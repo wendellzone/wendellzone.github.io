@@ -25,6 +25,19 @@
     "readingTime": 3
   },
   {
+    "slug": "mcp-builder-deep-dive",
+    "title": "拆解 mcp-builder skill：四阶段造一个让 AI 自己用的 API",
+    "date": "2026-05-12",
+    "tags": [
+      "工具",
+      "AI",
+      "MCP",
+      "复盘"
+    ],
+    "summary": "研究 → 实现 → 测试 → 评测，解析 Anthropic 官方 mcp-builder 的设计哲学与技术栈取向。",
+    "readingTime": 3
+  },
+  {
     "slug": "skills-rules-ai-workflow",
     "title": "基于 Skills + Rules 构建 AI Agent 自动化工作流",
     "date": "2026-05-11",
