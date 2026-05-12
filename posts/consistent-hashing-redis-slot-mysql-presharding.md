@@ -5,11 +5,6 @@ tags: [后端, 分布式, Redis, MySQL, Go]
 summary: 从一致性哈希环讲起，澄清 Redis Cluster 用的是 16384 个固定 slot，拓展到 MySQL 预分片——用远超物理节点数的逻辑分片对抗持久化数据的迁移成本。
 ---
 
-
-
-
-
-
 后端做数据分片，几乎一定会碰到三个词：**一致性哈希**、**Redis slot**、**MySQL 预分片**。它们看起来各是各的，其实底层思路一脉相承——都是在"key 到物理节点"之间塞一个稳定的中间层，让物理扩缩容不再牵连全量数据。
 
 这篇博客把三件事串起来讲清楚。
@@ -172,7 +167,7 @@ func (h *HashRing) Remove(node string) {
 		hash := crc32.ChecksumIEEE([]byte(node + "#" + strconv.Itoa(i)))
 		delete(h.hashMap, hash)
 	}
-	newRing := h.ring[:0]
+	newRing := make([]uint32, 0, len(h.ring))
 	for _, v := range h.ring {
 		if _, ok := h.hashMap[v]; ok {
 			newRing = append(newRing, v)
@@ -288,7 +283,7 @@ antirez 亲自回答过：
   <g>
     <rect x="40" y="160" width="600" height="135" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
     <text x="60" y="182" font-family="sans-serif" font-size="12" font-weight="500" fill="#444">集群路由表 (clusterState.slots[16384])</text>
-    <text x="60" y="200" font-family="monospace" font-size="11" fill="#666">slot 0     → mysql-cluster Node A (10.0.0.1:6379)</text>
+    <text x="60" y="200" font-family="monospace" font-size="11" fill="#666">slot 0     → Node A (10.0.0.1:6379)</text>
     <text x="60" y="216" font-family="monospace" font-size="11" fill="#666">slot 1     → Node A</text>
     <text x="60" y="232" font-family="monospace" font-size="11" fill="#666">  ...</text>
     <text x="60" y="248" font-family="monospace" font-size="11" fill="#A32D2D">slot 7543  → Node B (10.0.0.2:6379)   ← 命中</text>
@@ -365,14 +360,13 @@ slot 迁移**进行中**时还会出现 **`ASK`**：
 `go-redis` 的 `ClusterClient` 已经把这套全包了，但理解原理可以手撸一个最小版：
 
 ```go
-import "github.com/go-redis/redis/v9/internal/hashtag"
-
 type ClusterRouter struct {
 	mu        sync.RWMutex
 	slotToIP  [16384]string // gossip 同步来的快照
 }
 
-// 标准库没暴露 CRC16-CCITT，自己实现或用 redis 的源码
+// CRC16-CCITT 算法见 redis.io/topics/cluster-spec 附录
+// 也可以直接用 go-redis 内部的 hashtag.Slot()
 func slotOf(key string) uint16 {
 	tag := extractHashTag(key) // 提取 {} 里的内容；没有则用整个 key
 	return crc16ccitt([]byte(tag)) & 16383
@@ -402,7 +396,7 @@ func (c *ClusterRouter) HandleMoved(slot uint16, newAddr string) {
 | 路由信息 | 集中（集群 gossip 维护 slot→node 映射） | 去中心化，客户端自算 |
 | 迁移粒度 | 可精确到单 slot | 顺时针的一段弧 |
 | 热点处理 | 可手动迁单个 slot | 只能加/减节点 |
-| 典型场景 | 持久化、需可控性 | 无状态缓存 |
+| 典型场景 | 集群拓扑可控、需精细调度 | 客户端无中心、纯缓存场景 |
 
 ## MySQL 分片：预分片把思路用到极致
 
@@ -465,7 +459,7 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
 
 1. **逻辑分片数选 2 的幂**（1024、2048、4096 常见）。按位运算快、可反复对半劈、物理机数只要也是 2 的幂就能平均分。
 2. **路由层维护映射表**：`shard_id → 物理实例 + schema + 表名`。扩容就是搬数据 + 改映射表 + 切流量，业务代码不动。
-3. **逻辑分片数 ≫ 物理 schema 数**：1024 体现在"表"的维度，不是"db"的维度。常见组合：**8 实例 × 4 schema × 32 表 = 1024**，或 **8 实例 × 1 schema × 128 表**。
+3. **逻辑分片数 ≫ 物理 schema 数**：1024 主要落在"表"的维度，不在"db (schema)"的维度。下一节给出具体的"实例 × schema × 表"组合方案。
 
 ### 物理部署：1024 个逻辑分片实际怎么落到机器上
 
@@ -473,7 +467,7 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
 
 如果真的在一台 MySQL 上建 512 个 schema，运维会立刻爆炸——`table_open_cache` / `table_definition_cache` 直接顶天，备份脚本、监控、权限管理都跟着遭殃。所以**物理 schema 通常少很多**，1024 这个数字主要落在**表后缀**上。
 
-主流形态有两种：
+主流形态有三种：
 
 | 方案 | 实例 × schema × 表 | 优势 |
 |---|---|---|
@@ -494,7 +488,7 @@ MySQL 的痛点比 Redis 更大——**数据是持久化的，迁移代价极�
   <g>
     <rect x="40" y="50" width="600" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
     <text x="340" y="72" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#3C3489">应用层（业务代码）</text>
-    <text x="340" y="89" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">shard_id = hash(user_id) &amp; 1023  →  Locate("user:1001", "t_order") = "order_db_2.t_order_27"</text>
+    <text x="340" y="89" text-anchor="middle" font-family="monospace" font-size="11" fill="#3C3489">shard_id = hash(user_id) &amp; 1023  →  Locate("user:1001", "t_order") = "mysql-?.order_db_?.t_order_?"</text>
   </g>
 
   <path d="M340 98 L 340 124" fill="none" stroke="#bbb" stroke-width="0.5" marker-end="url(#dep-arrow)"/>
@@ -649,11 +643,16 @@ func shardID(key string) uint32 {
 
 ```go
 const (
-	InstanceCount = 8   // 物理 MySQL 实例数
-	SchemaPerNode = 4   // 每实例的 schema 数
+	InstanceCount  = 8  // 物理 MySQL 实例数
+	SchemaPerNode  = 4  // 每实例的 schema 数
 	TablePerSchema = 32 // 每 schema 的分表数
 	// 8 × 4 × 32 = 1024 = ShardCount
 )
+
+// Router 持有 8 份连接池，每个实例一份；schema 和表只是 SQL 里的字符串
+type Router struct {
+	instances [InstanceCount]*sql.DB
+}
 
 type Location struct {
 	InstanceIdx int    // 0..7
@@ -662,7 +661,7 @@ type Location struct {
 }
 
 func (r *Router) Locate(key, logicalTable string) (Location, *sql.DB) {
-	sid := int(shardID(key))                    // 0..1023
+	sid := int(shardID(key))                          // 0..1023
 	instIdx := sid / (SchemaPerNode * TablePerSchema) // 0..7
 	schIdx := (sid / TablePerSchema) % SchemaPerNode  // 0..3
 	tbIdx := sid % TablePerSchema                     // 0..31
@@ -676,9 +675,9 @@ func (r *Router) Locate(key, logicalTable string) (Location, *sql.DB) {
 }
 ```
 
-举例：`shardID("user:1001") = 539` → instance 4 (mysql-5), schema `order_db_0`, table `t_order_27`。
+举例：`shardID("user:1001") = 539` → instance 4 (mysql-5), schema `order_db_0`, table `t_order_27`（数字仅为示意，真实 hash 值取决于 CRC32 输出）。
 
-**关键点：连接池只跟"实例"挂钩，跟"schema"无关**——`*sql.DB` 是按 `mysql-1`..`mysql-8` 一共 8 份，SQL 里写 `order_db_0.t_order_27` 即可，不需要为每个 schema 单独建连接。
+**关键点：连接池只跟"实例"挂钩，跟"schema"无关**——`*sql.DB` 是按 `mysql-1`..`mysql-8` 一共 8 份。SQL 里写完整限定名 `order_db_0.t_order_27` 即可，DSN 里的默认 schema 留空（DSN 末尾只写 `/`）。
 
 **③ 路由表热更新（扩容关键）**
 
@@ -687,61 +686,66 @@ func (r *Router) Locate(key, logicalTable string) (Location, *sql.DB) {
 ```go
 import "sync/atomic"
 
-type instMap struct {
-	instances [InstanceCount]*sql.DB // 8 份连接池
-	version   int64
+type shardMap struct {
+	// 1024 长的查找表：shard_id → 该分片当前所在的物理实例
+	// 扩容时整体重建并 Store，老的指针被 GC 回收
+	slotToDB [ShardCount]*sql.DB
+	version  int64
 }
 
 type LiveRouter struct {
-	current atomic.Pointer[instMap]
+	current atomic.Pointer[shardMap]
 }
 
-func (r *LiveRouter) Update(m *instMap) { r.current.Store(m) }
+func (r *LiveRouter) Update(m *shardMap) { r.current.Store(m) }
 
 func (r *LiveRouter) Pick(key string) *sql.DB {
-	sid := shardID(key)
-	idx := int(sid) / (SchemaPerNode * TablePerSchema)
-	return r.current.Load().instances[idx]
+	return r.current.Load().slotToDB[shardID(key)]
 }
 ```
+
+为什么用 1024 长的查找表而不是"按实例数除"？因为扩容时分片**可以任意切分**——可能把 mysql-1 上的 shard 64..127 单独搬到 mysql-9，剩下 0..63 还在 mysql-1。查找表能精确表达任意切分，按比例除就僵化了。
 
 > ⚠️ `atomic.Store` **只是切流量瞬间的扣扳机动作**，前提是新老库数据已经完全追平。
 > 直接调 `Update(newMap)` 让老库的最近写入丢失——具体怎么保证一致性，看下一节。
 
 **④ 从 yaml 加载映射**
 
-生产里映射一般在 etcd / Nacos / apollo，最小可用版本是一份 yaml。**注意配置粒度是"实例承担哪些 shard_id 段"，不是"实例放哪些 schema"**——schema 名字是固定的 `order_db_0..3`，每台机器都建一样的 4 个：
+生产里映射一般在 etcd / Nacos / apollo，最小可用版本是一份 yaml。**配置粒度是"实例承担哪些 shard_id 段"**——schema 名字是固定的 `order_db_0..3`，每台机器都建一样的 4 个：
 
 ```yaml
 instances:
-  - { idx: 0, dsn: "user:pwd@tcp(10.0.0.1:3306)/", shards: [0,    127] }
-  - { idx: 1, dsn: "user:pwd@tcp(10.0.0.2:3306)/", shards: [128,  255] }
-  - { idx: 2, dsn: "user:pwd@tcp(10.0.0.3:3306)/", shards: [256,  383] }
+  - { name: mysql-1, dsn: "user:pwd@tcp(10.0.0.1:3306)/", shards: [0,    127] }
+  - { name: mysql-2, dsn: "user:pwd@tcp(10.0.0.2:3306)/", shards: [128,  255] }
+  - { name: mysql-3, dsn: "user:pwd@tcp(10.0.0.3:3306)/", shards: [256,  383] }
   # ...
-  - { idx: 7, dsn: "user:pwd@tcp(10.0.0.8:3306)/", shards: [896, 1023] }
+  - { name: mysql-8, dsn: "user:pwd@tcp(10.0.0.8:3306)/", shards: [896, 1023] }
 ```
 
 ```go
 type InstanceCfg struct {
-	Idx    int    `yaml:"idx"`
+	Name   string `yaml:"name"`
 	DSN    string `yaml:"dsn"`
-	Shards [2]int `yaml:"shards"` // 该实例承载的 shard_id 区间
+	Shards [2]int `yaml:"shards"` // 该实例承载的 shard_id 闭区间
 }
 
-func BuildInstMap(cfgs []InstanceCfg) (*instMap, error) {
-	m := &instMap{}
+func BuildShardMap(cfgs []InstanceCfg) (*shardMap, error) {
+	m := &shardMap{}
 	for _, c := range cfgs {
 		db, err := sql.Open("mysql", c.DSN)
 		if err != nil {
 			return nil, err
 		}
-		m.instances[c.Idx] = db
+		// 把这一段 shard 全部指向同一个连接池
+		for s := c.Shards[0]; s <= c.Shards[1]; s++ {
+			m.slotToDB[s] = db
+		}
 	}
 	return m, nil
 }
 ```
 
-扩容 = 改 yaml（比如把 mysql-1 的 `[0,127]` 拆成 `[0,63]` 留在 mysql-1、`[64,127]` 给新加的 mysql-9），再触发 `Update`。
+**扩容**就是改 yaml：把 mysql-1 的 `[0,127]` 拆成 `[0,63]` 留 mysql-1、`[64,127]` 给新加的 mysql-9，然后 `BuildShardMap` 出新表 → `Update`。物理实例数从 8 变 9 ，应用代码不动。
 
 **⑤ 一次性预建 4 schema × 32 表（每台机器执行一次）**
 
@@ -850,7 +854,7 @@ func InitSchema(instance *sql.DB) error {
 3. **追平 & 校验**：等 binlog 同步任务把双写之前的增量补完，再用 `pt-table-checksum` 或自研脚本逐表校验行数、checksum，确认两边完全一致。
 4. **切读**：路由层把 shard 0..127 的**读流量**切到 mysql-9。这一步出问题（性能不行、有数据漂移）随时能切回——写还在双写。
 5. **切写**：观察一段时间稳定后，调 `atomic.Store` 把 shard 0..127 的写也切到只写 mysql-9。**这才是 `Update(newMap)` 真正起作用的瞬间**。
-6. **回收**：双写关闭，mysql-1 上 shard 0..127 对应的物理表保留一段时间（一般 1~7 天）作回滚兜底，确认无问题后 `DROP TABLE`（或整库 `DROP DATABASE` 如果整个 schema 都搬走了）。
+6. **回收**：双写关闭，mysql-1 上 shard 0..127 对应的物理表保留一段时间（一般 1~7 天）作回滚兜底，确认无问题后 `DROP TABLE` 释放空间。schema 本身不动（剩下的 shard 还在用）。
 
 #### 双写代码片段
 
@@ -899,7 +903,7 @@ func (d *DualWriter) Exec(query string, args ...any) (sql.Result, error) {
 
 ### 容易踩的三个坑
 
-1. **分片键一旦定了几乎不能改**。改分片键 = 全量数据洗牌，比扩容还痛苦。订单系统常用 `user_id` 而不是 `order_id`，这样按用户的查询全落单库。
+1. **分片键一旦定了几乎不能改**。**分片键**（sharding key，前面所有代码里 `shardID(key)` 的入参）改了 = 全量数据洗牌，比扩容还痛苦。订单系统常用 `user_id` 做分片键而不是 `order_id`，这样按用户的查询全落单分片（同一台机器、同一张表），无需跨实例。
 2. **跨分片查询要预先规避**。需要"按商家维度查订单"时，标准做法是双写一份按 `merchant_id` 分片的索引表，别想着运行时做 scatter-gather。
 3. **初始分片数宁多勿少**。1024 起步几乎没上限压力，比"按当前机器数精确规划"重要得多——这是唯一不能改的参数。
 
