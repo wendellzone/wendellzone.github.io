@@ -12,6 +12,19 @@
     "readingTime": 14
   },
   {
+    "slug": "pptx-skill-deep-dive",
+    "title": "拆解 pptx skill：AI 做 PPT 不出戏的关键是把找 bug 写进流程",
+    "date": "2026-05-12",
+    "tags": [
+      "工具",
+      "AI",
+      "PPT",
+      "复盘"
+    ],
+    "summary": "读、改、做 PPT 三条路 + 一个放大镜，解析 Anthropic 官方 pptx skill 的设计思路。",
+    "readingTime": 3
+  },
+  {
     "slug": "skills-rules-ai-workflow",
     "title": "基于 Skills + Rules 构建 AI Agent 自动化工作流",
     "date": "2026-05-11",
