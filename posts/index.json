@@ -63,16 +63,6 @@
     "readingTime": 15
   },
   {
-    "slug": "hello-world",
-    "title": "你好，世界",
-    "date": "2026-05-11",
-    "tags": [
-      "杂记"
-    ],
-    "summary": "第一篇文章，介绍这个博客的技术栈与发文流程。",
-    "readingTime": 1
-  },
-  {
     "slug": "blog-post-skill",
     "title": "给博客写了一个 skill：让 AI 一句话帮我发文",
     "date": "2026-05-11",
