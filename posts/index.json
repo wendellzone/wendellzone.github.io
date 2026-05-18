@@ -1,5 +1,18 @@
 [
   {
+    "slug": "key-service-design-notes-architecture",
+    "title": "密钥服务设计笔记：分层架构与算法选型",
+    "date": "2026-05-18",
+    "tags": [
+      "后端",
+      "密码学",
+      "架构",
+      "Go"
+    ],
+    "summary": "KMS 通用架构：五层分层 + 三层信封（Root KEK→CMK→DEK）+ 双栈算法 + Provider 抽象 + 自描述密文 blob",
+    "readingTime": 5
+  },
+  {
     "slug": "skill-creator-deep-dive",
     "title": "skill-creator 深度解析：一个教模型如何造技能的技能",
     "date": "2026-05-12",
