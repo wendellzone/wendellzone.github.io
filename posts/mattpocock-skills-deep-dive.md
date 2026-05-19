@@ -278,7 +278,7 @@ npx skills@latest add mattpocock/skills
 ```
 /grill-me
 
-我想给 mira-backend-service 加一个批量审批 job 的功能。
+我想给 order-service 加一个批量审批订单的功能。
 能让运营在管理后台一次性勾选多个待审批 job，统一通过或驳回。
 ```
 
@@ -290,7 +290,7 @@ npx skills@latest add mattpocock/skills
 ❌ 错的用法（很多新手会这么做）：
    第一条：/grill-me
    AI：好的，请问您想盘问什么？
-   第二条：我想给 mira-backend-service 加批量审批…
+   第二条：我想给 order-service 加批量审批…
    （这样会浪费一轮对话，效果也差）
 
 ✅ 对的用法：
@@ -306,7 +306,7 @@ npx skills@latest add mattpocock/skills
 **示例**：
 
 ```
-帮我盘问一下这个设计：我想给 mira-backend-service 加批量审批 job…
+帮我盘问一下这个设计：我想给 order-service 加批量审批订单…
 ```
 
 AI 看到"盘问"这个词，会匹配到 `grill-me` 的 description（包含"grill"和"interview relentlessly"），自动按 grill-me 的方式来处理。
@@ -438,7 +438,7 @@ AI 看到"盘问"这个词，会匹配到 `grill-me` 的 description（包含"gr
 
 ```
 [显式] /grill-with-docs
-       我想给 mira-backend-service 加批量审批 job 功能。
+       我想给 order-service 加批量审批订单功能。
 
 → AI 用 grill-with-docs 盘问，更新 CONTEXT.md
 （盘问完成后...）
@@ -489,7 +489,7 @@ AI 看到"盘问"这个词，会匹配到 `grill-me` 的 description（包含"gr
 ```
 /grill-me
 
-我想给 mira-backend-service 加批量审批 job 的能力。
+我想给 order-service 加批量审批订单的能力。
 后台管理员能一次勾选多个 pending job，批量通过或驳回。
 请帮我把方案聊清楚。
 ```
@@ -498,7 +498,7 @@ AI 看到"盘问"这个词，会匹配到 `grill-me` 的 description（包含"gr
 
 1. 解析 `/grill-me` → 加载 `~/.workbuddy/skills/grill-me/SKILL.md` 的内容
 2. SKILL.md 的指令是"对每个方面无情盘问，一次问一个问题，每个问题给推荐答案"
-3. 同时拿到用户的需求"批量审批 job"作为上下文
+3. 同时拿到用户的需求"批量审批订单"作为上下文
 4. AI 开始按 skill 指令工作
 
 **AI 的第一轮回复**（典型样式）：
@@ -1188,7 +1188,7 @@ package.json:
 
 ### 实战示例：给已有项目加新功能
 
-假设要给 mira-backend-service 加一个"批量审批 job"功能：
+假设要给 order-service 加一个"批量审批订单"功能：
 
 ```bash
 # 第 1 步：和 AI 对齐细节
