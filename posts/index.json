@@ -12,6 +12,18 @@
     "readingTime": 22
   },
   {
+    "slug": "skill-trigger-mechanism-explicit-vs-implicit",
+    "title": "显式触发 vs 隐式触发：Skill 系统底下的两条执行路径",
+    "date": "2026-05-19",
+    "tags": [
+      "AI",
+      "工具",
+      "工程素养"
+    ],
+    "summary": "两种触发方式表面像输入风格差异，底层是两条完全不同的执行路径",
+    "readingTime": 6
+  },
+  {
     "slug": "key-service-design-notes-architecture",
     "title": "密钥服务设计笔记：分层架构与算法选型",
     "date": "2026-05-18",
