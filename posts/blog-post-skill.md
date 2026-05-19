@@ -72,4 +72,4 @@ git show <commit>
 
 ## 怎么用
 
-下次想发博客，直接跟 WorkBuddy 说"帮我写一篇关于 X 的博客"或者"把那篇 Mira 的博客 summary 改一下"就行。triggers 都写进 skill 的 description 了，AI 会自动激活。
+下次想发博客，直接跟 WorkBuddy 说"帮我写一篇关于 X 的博客"或者"把博客 xxx 的 summary 改一下"就行。triggers 都写进 skill 的 description 了，AI 会自动激活。
