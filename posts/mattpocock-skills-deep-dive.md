@@ -11,8 +11,8 @@ summary: Matt Pocock 开源的 AI coding skill 集合，把工程基本功翻译
 - [二、为什么要有这套 skills](#二为什么要有这套-skills)
 - [三、设计哲学](#三设计哲学)
 - [四、四大失败模式与对策](#四四大失败模式与对策)
-- [五、Skill 是怎么生效的（底层原理）](#五skill-是怎么生效的底层原理)
-- [六、实操：怎么在 CodeBuddy / Claude Code 里调用](#六实操怎么在-codebuddy--claude-code-里调用)
+- [五、Skill 是怎么生效的](#五skill-是怎么生效的)
+- [六、实操：怎么调用一个 skill](#六实操怎么调用一个-skill)
 - [七、Engineering 桶——10 个工程类 skill 详解](#七engineering-桶10-个工程类-skill-详解)
 - [八、Productivity 桶——4 个生产力类 skill 详解](#八productivity-桶4-个生产力类-skill-详解)
 - [九、Misc 桶——4 个杂项 skill 详解](#九misc-桶4-个杂项-skill-详解)
@@ -181,441 +181,120 @@ mattpocock/skills 的卖点是"基本功"——它把《Pragmatic Programmer》�
 
 ---
 
-## 五、Skill 是怎么生效的（底层原理）
-
-### 5.1 Skill 文件结构
+## 五、Skill 是怎么生效的
 
 每个 skill 本质是一个 `SKILL.md` 文件，分两部分：
 
-**Part 1：Frontmatter（YAML 元数据）**
+**Frontmatter（YAML 元数据）**
 
 ```yaml
 ---
 name: grill-with-docs
 description: Grilling session that challenges your plan against the existing
-  domain model, sharpens terminology, and updates documentation inline.
-  Use when user wants to stress-test a plan against their project's language.
+  domain model... Use when user wants to stress-test a plan...
 ---
 ```
 
-`description` 字段是 **agent 触发匹配的关键**。Claude Code 启动时会把所有 skill 的 description 灌进系统提示，AI 根据用户当前意图自动选择最匹配的 skill 加载。**这也是为什么翻译时绝对不能动 description 字段**——动了就影响触发。
+`description` 字段是 **agent 触发匹配的关键**——工具启动时会把所有 skill 的 description 灌进 system prompt，AI 根据用户当前意图自动匹配。**因此翻译/修改时绝不能动 description**，否则触发就坏。
 
-**Part 2：Body（指令正文）**
+**Body（指令正文）**
 
-正文是给 agent 看的指令——告诉它**该怎么做**这件事。可能包含：
+正文是给 agent 看的指令——具体步骤、决策规则、检查清单。可以引用子文档（`[deep-modules.md](deep-modules.md)`）做按需加载，节省 token。
 
-- 具体步骤（"先盘问，再探索代码库，再做计划"）
-- 决策规则（"只有满足三个条件才创建 ADR"）
-- 检查清单（"每个 cycle 后检查测试是否仍然只测行为不测实现"）
-- 子文档引用（用 `[deep-modules.md](deep-modules.md)` 链接到延伸阅读）
-
-### 5.2 触发机制
+**触发机制**：
 
 ```
 用户输入 ─▶ Claude Code 内部
               │
-              ├─ 显式触发：用户输入 /skill-name
-              │   └─▶ 直接加载该 skill 的 SKILL.md 进上下文
+              ├─ 显式触发：/skill-name → 直接加载 SKILL.md
               │
-              └─ 隐式触发：根据 description 字段自动匹配
-                  └─▶ AI 判断当前任务匹配哪个 skill
-                      └─▶ 加载并按 SKILL.md 指令执行
+              └─ 隐式触发：根据 description 自动匹配
+                  → AI 判断意图 → 加载并执行
 ```
 
-### 5.3 Progressive disclosure（渐进式披露）
-
-skill 文件不是一次性把所有信息塞给 AI。它通过**子文档引用**实现按需加载：
-
-```
-SKILL.md（精简）
-  │
-  ├──▶ [deep-modules.md](deep-modules.md)
-  │     仅当 AI 需要展开"深模块"概念时才会去读
-  │
-  ├──▶ [tests.md](tests.md)
-  │     仅当 AI 在写测试时才会去读
-  │
-  └──▶ [refactoring.md](refactoring.md)
-        仅当 AI 进入 refactor 阶段才会去读
-```
-
-这样既保证 SKILL.md 主文件简洁（节省 token），又保证 AI 在需要细节时能拿到。
+> 这两种触发方式底下的执行路径差异很大，单独写过一篇详解：[《显式触发 vs 隐式触发：Skill 系统底下的两条执行路径》](#/post/skill-trigger-mechanism-explicit-vs-implicit)。
 
 ---
 
-## 六、实操：怎么在 CodeBuddy / Claude Code 里调用
+## 六、实操：怎么调用一个 skill
 
-这一节专门回答最常被问的问题：**"我打开 IDE，到底怎么用一个 skill？"**
+最常被问的问题：**"打开 IDE，到底怎么用一个 skill？"**
 
-### 6.1 安装 skill 到工作区
+### 6.1 安装位置
 
-第一步是把 skill 文件放到 AI 编码助手能识别到的位置。不同工具略有差异：
+| 工具 | skill 存放位置 |
+|---|---|
+| **CodeBuddy / WorkBuddy** | `~/.workbuddy/skills/`（用户级）<br>`{项目}/.workbuddy/skills/`（项目级） |
+| **Claude Code** | `~/.claude/skills/` 或 `{项目}/.claude/skills/` |
+| **Cursor** | `.cursor/rules/` 或 MDC 规则 |
 
-| 工具 | skill 存放位置 | 加载时机 |
-|---|---|---|
-| **CodeBuddy / WorkBuddy** | `~/.workbuddy/skills/`（用户级）<br>`{项目}/.workbuddy/skills/`（项目级） | 启动会话时自动扫描，按 description 触发 |
-| **Claude Code** | `~/.claude/skills/`（用户级）<br>`{项目}/.claude/skills/`（项目级） | 启动会话时自动扫描 |
-| **Cursor** | `.cursor/rules/` 或 MDC 规则 | 取决于具体配置 |
-
-mattpocock 的官方安装方式是一条命令：
+官方安装命令：
 
 ```bash
 npx skills@latest add mattpocock/skills
 ```
 
-它会让你勾选要装哪些 skill 和装到哪个工具。**勾选时务必把 `setup-matt-pocock-skills` 也勾上**，这是项目级配置脚本，第一次使用时必须先跑。
+勾选时务必把 `setup-matt-pocock-skills` 也勾上，第一次使用必须先跑这个配置脚本。
 
-### 6.2 在对话框里怎么"触发"一个 skill
+### 6.2 触发的正确姿势
 
-这是用户最容易卡住的地方。**有两种触发方式**，对应不同场景：
-
-#### 方式 A：显式触发（推荐入门用）
-
-直接在对话框里输入 `/skill-name`，**和你的需求写在同一条消息里**，一次性发送。
-
-**正确示例**（以 grill-me 为例，回答你的问题）：
+**显式触发**（推荐入门用）：直接 `/skill-name` 加上你的需求，**写在同一条消息里一次发出**。
 
 ```
+✅ 正确：
 /grill-me
 
-我想给 order-service 加一个批量审批订单的功能。
-能让运营在管理后台一次性勾选多个待审批 job，统一通过或驳回。
-```
-
-发出去之后，AI 收到的是"加载 grill-me 这个 skill 的指令 + 你的具体需求"，它会按 grill-me 的 prompt 开始盘问你。
-
-**不需要分两步发**：
-
-```
-❌ 错的用法（很多新手会这么做）：
-   第一条：/grill-me
-   AI：好的，请问您想盘问什么？
-   第二条：我想给 order-service 加批量审批…
-   （这样会浪费一轮对话，效果也差）
-
-✅ 对的用法：
-   一条消息发完：/grill-me + 完整需求
-```
-
-> 💡 **核心心法**：把 `/skill-name` 想成一个**带前缀的指令模式切换**。它告诉 AI："接下来这条消息，请用 X 这套规则来处理。"指令和上下文必须放一起，AI 才有完整信息开始工作。
-
-#### 方式 B：隐式触发（熟练后用）
-
-你**根本不输入 `/`**，直接说自己的需求。AI 会根据 skill 的 description 字段自动判断要不要用某个 skill。
-
-**示例**：
-
-```
-帮我盘问一下这个设计：我想给 order-service 加批量审批订单…
-```
-
-AI 看到"盘问"这个词，会匹配到 `grill-me` 的 description（包含"grill"和"interview relentlessly"），自动按 grill-me 的方式来处理。
-
-**新手建议**：前两周都用方式 A 显式触发，把每个 skill 的名字和用法记熟。熟练后再让 AI 自动选。两种触发方式的详细对比见下一节。
-
-### 6.3 显式触发 vs 隐式触发：详细对比
-
-这是一个值得单独展开讲的话题，因为**选错触发方式会直接影响 skill 的效果**。
-
-#### 6.3.1 工作机制对比
-
-**显式触发（`/skill-name`）的内部流程**
-
-```
-用户输入: "/grill-me   我想给 X 加 Y 功能..."
-   │
-   ▼
-解析器看到 "/" 开头 → 识别为 skill 调用
-   │
-   ▼
-直接定位 ~/.workbuddy/skills/grill-me/SKILL.md
-   │
-   ▼
-把 SKILL.md 全文 + frontmatter 注入到 system prompt
-   │
-   ▼
-把"我想给 X 加 Y 功能..."作为用户消息送给模型
-   │
-   ▼
-模型在 grill-me 的 prompt 约束下回应
-```
-
-**隐式触发（自然语言）的内部流程**
-
-```
-用户输入: "帮我盘问一下这个设计..."
-   │
-   ▼
-工具启动时已把所有 skill 的 description 字段
-预加载到 system prompt
-   │
-   ▼
-模型读用户消息，自己判断"这个意图匹配哪个 skill"
-   │
-   ▼
-匹配到 grill-me（因为 description 含 "grill" "interview relentlessly"）
-   │
-   ▼
-模型主动加载 grill-me/SKILL.md 全文
-   │
-   ▼
-按 grill-me 的指令回应
-```
-
-关键差异：**显式触发是"指令式"——你告诉系统加载哪个 skill；隐式触发是"猜测式"——模型读你意图后自己决定加载哪个。**
-
-#### 6.3.2 优劣势对比
-
-| 维度 | 显式触发 `/skill-name` | 隐式触发（自然语言） |
-|---|---|---|
-| **命中率** | 100% 命中你指定的 skill | 70-90%，取决于关键词覆盖 |
-| **延迟** | 直接加载，最快 | 模型先做匹配决策，多 1 步推理 |
-| **token 开销** | 只加载目标 skill | 所有 skill 的 description 都驻留在 system prompt |
-| **可控性** | 完全可控 | 模型可能选错或不选 |
-| **学习曲线** | 要记 skill 名 | 自然，不用学 |
-| **混合调用** | 一条消息只能触发一个 skill | 模型可能在中途切换 skill |
-| **可调试性** | 高（你知道用了哪个 skill） | 低（要看模型的 reasoning 才知道） |
-| **与 description 字段耦合** | 弱（只看 name） | 强（description 写得好不好直接影响触发） |
-| **对中文输入友好度** | 一致（命令是英文） | 取决于 description 是否包含中文关键词 |
-
-#### 6.3.3 各场景下的最佳选择
-
-| 场景 | 推荐 | 原因 |
-|---|---|---|
-| 第一次用某个 skill | 显式 | 命中率 100%，先验证 skill 装对了 |
-| 关键流程节点（TDD 写测试、diagnose 修 bug） | **强烈建议显式** | 这种场景容错率低，不能让模型猜 |
-| 长会话切换 skill（写完测试要修 bug） | 显式 | 让模型清楚"现在切换上下文了" |
-| 你在跑半自动 pipeline（如 CI 里调 AI） | 显式 | 脚本化场景，必须确定性 |
-| 日常摸索式对话 | 隐式 | 你也不确定想用哪个 skill，让模型选 |
-| 教别人用 skill | 显式 | 演示效果稳定 |
-| 中文输入为主的场景 | 显式 | 大部分 skill 的 description 是英文，中文匹配率低 |
-| 想让 AI 自动组合多个 skill | 隐式 | 模型可以在不同段落用不同 skill |
-| Skill 名记不住时 | 隐式 | 自然语言总能用 |
-
-#### 6.3.4 隐式触发的"匹配陷阱"
-
-隐式触发不是万能的。下面这些情况经常踩坑：
-
-**陷阱 1：description 里没有的同义词不会触发**
-
-```
-你说："quiz 我一下这个方案"
-预期：触发 /grill-me（盘问 ≈ 拷问 ≈ quiz）
-实际：可能不触发，因为 grill-me 的 description 里只有
-      "grill"、"interview relentlessly"，没有 "quiz"
-```
-
-**陷阱 2：意图不明确时模型会"自由发挥"**
-
-```
-你说："帮我看看这段代码"
-预期：触发 /diagnose 或 /zoom-out
-实际：模型可能两个都不用，直接按通用方式回复
-```
-
-**陷阱 3：跨语言匹配率不稳定**
-
-```
-你说："帮我诊断一下这个 bug"
-英文 description: "Disciplined diagnosis loop for hard bugs..."
-匹配结果：通常能触发，但不如英文输入"diagnose this bug"稳定
-```
-
-**陷阱 4：多个 skill 关键词重叠时会"撞车"**
-
-```
-你说："帮我重构一下这块"
-候选：/improve-codebase-architecture（含 architecture refactor）
-     /tdd（refactor 是它工作流的一环）
-模型可能选错。
-```
-
-**对策**：在不确定的时候，永远用显式触发。
-
-#### 6.3.5 一段对话里两种方式怎么混用
-
-实际工作中，最舒服的方式是**两种混用**：
-
-```
-[显式] /grill-with-docs
-       我想给 order-service 加批量审批订单功能。
-
-→ AI 用 grill-with-docs 盘问，更新 CONTEXT.md
-（盘问完成后...）
-
-[隐式] 把这次讨论凝练成 PRD 吧。
-→ AI 自动识别意图，加载 /to-prd 的 skill，输出 PRD
-
-[显式] /to-issues
-       拆成可独立认领的 issue。
-→ AI 用 /to-issues 拆切片
-
-（开始干活...）
-
-[显式] /tdd
-       从第一个 issue 开始：批量审批 API 骨架。
-→ AI 用 TDD 节奏推进
-```
-
-规律：**关键阶段切换用显式（确保上对鞍）、阶段内的小动作用隐式（保持对话流畅）。**
-
-#### 6.3.6 一图记忆
-
-```
-            ┌──────────────────────────────┐
-            │     该用哪种触发方式？        │
-            └──────────────┬───────────────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-        我清楚要用哪个 skill?      我不确定?
-              │                         │
-              ▼                         ▼
-         显式触发                  隐式触发
-       /skill-name + 需求         直接说需求
-              │                         │
-        100% 命中                   模型猜，可能错
-              │                         │
-              ▼                         ▼
-        正确率: 100%              正确率: 70-90%
-        token 省                  token 多
-        新手友好                  熟练后流畅
-```
-
-### 6.4 完整对话示例：用 `/grill-me` 盘问一个新功能
-
-**用户的真实输入**（一条消息发完）：
-
-```
-/grill-me
-
-我想给 order-service 加批量审批订单的能力。
-后台管理员能一次勾选多个 pending job，批量通过或驳回。
+我想给 order-service 加批量审批订单的功能，
+能让运营在管理后台一次勾选多个待审批订单统一通过。
 请帮我把方案聊清楚。
+
+❌ 错误（很多新手会这么做）：
+   第一条："/grill-me"
+   第二条："我想加批量审批…"
+   （浪费一轮，效果还差）
 ```
 
-**AI 收到后内部做的事**：
+> **核心心法**：把 `/skill-name` 当成**带前缀的指令模式切换**——它告诉 AI："接下来这条消息，请用 X 这套规则处理。"指令和上下文必须放一起。
 
-1. 解析 `/grill-me` → 加载 `~/.workbuddy/skills/grill-me/SKILL.md` 的内容
-2. SKILL.md 的指令是"对每个方面无情盘问，一次问一个问题，每个问题给推荐答案"
-3. 同时拿到用户的需求"批量审批订单"作为上下文
-4. AI 开始按 skill 指令工作
+**隐式触发**：直接说自然语言，AI 根据 description 自动匹配。新手前两周建议都用显式，熟练后再让 AI 自动选。详细对比见上面那篇独立文章。
 
-**AI 的第一轮回复**（典型样式）：
+### 6.3 常用 skill 的输入模板
 
 ```
-我会逐个分支地盘问你的方案。一次只问一个问题，每个问题
-我都给推荐答案，你确认或修正。
+/grill-me                       ← 盘问任意计划
+[需求或方案描述]
 
-问题 1：批量操作的"事务语义"是什么？
-       场景：用户勾选 10 个 job，批准时第 7 个失败了，怎么办？
-  
-  推荐答案：独立处理。每个 job 独立成功/失败，不回滚已成功的。
-            返回结果中明确列出哪些成功、哪些失败、原因。
-            理由：审批是不可逆操作（已批的 job 已发出后续动作），
-            事务回滚成本高且容易出错；运营可对失败的单独重试。
+/grill-with-docs                ← 盘问 + 自动维护 CONTEXT.md
+[需求或方案描述]
+（必须在项目根目录跑）
 
-  你的选择？
+/diagnose                       ← 诊断 bug
+[症状、复现条件、错误信息、相关代码位置]
+
+/tdd                            ← TDD 写新功能
+要新增的功能：[一段描述]
+影响的模块：[文件或路径]
+
+/to-prd                         ← 凝练对话成 PRD（无需补充内容）
+
+/zoom-out                       ← 拉高视角
+我对这块代码不熟：[文件或路径]
+
+/handoff "下一个 session 用来做 [xxx]"
 ```
 
-**用户回应**：
-
-```
-认同独立处理。但失败的要能一键重试。
-```
-
-**AI 进入下一个问题**：
-
-```
-已记。问题 2：批量审批的"一致性边界"在哪？
-       场景：管理员勾选 10 个 job 时，其中某个被另一个管理员
-       同时单独批准了，状态已变。批量请求到达时怎么办？
-  
-  推荐答案：乐观锁。请求里带每个 job 的 version 号，服务端
-            校验失败的项归入"状态已变"分类，单独提示给前端。
-            ……
-```
-
-如此一轮一轮，直到所有维度都敲定。
-
-### 6.5 不同 skill 的"输入提示词"模板
-
-下面给出几个最常用 skill 的标准触发模板，你可以直接抄：
-
-**`/grill-me`**（盘问任意计划）：
-```
-/grill-me
-
-[一段需求或方案描述]
-```
-
-**`/grill-with-docs`**（盘问 + 自动维护 CONTEXT.md）：
-```
-/grill-with-docs
-
-[一段需求或方案描述]
-```
-> 注意：这个 skill 会主动读你 repo 根目录的 `CONTEXT.md` 和 `docs/adr/`，所以**必须在项目根目录的会话里跑**。
-
-**`/diagnose`**（诊断 bug）：
-```
-/diagnose
-
-[bug 现象描述：症状、复现条件、错误信息、相关代码位置]
-```
-
-**`/tdd`**（TDD 写新功能）：
-```
-/tdd
-
-要新增的功能：[一段功能描述]
-影响的模块：[文件或模块路径]
-```
-
-**`/to-prd`**（把已经讨论过的内容凝练成 PRD）：
-```
-/to-prd
-```
-> 这个 skill **不需要再补充内容**，它会从对话历史里提取信息。前提是当前会话已经讨论过该需求。
-
-**`/zoom-out`**（拉高视角）：
-```
-/zoom-out
-
-我对这块代码不熟：[文件或模块路径]
-```
-
-**`/improve-codebase-architecture`**（找架构改善机会）：
-```
-/improve-codebase-architecture
-
-请扫描这个范围：[目录或模块路径]
-```
-
-**`/handoff`**（压缩当前会话）：
-```
-/handoff "下一个 session 用来做 [简短描述]"
-```
-
-### 6.6 如果触发失败了怎么办？
-
-常见失败模式和排查：
+### 6.4 触发失败排查
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| 输入 `/grill-me` 后 AI 当成普通文本回复 | skill 没装到 AI 工具能识别的位置 | 检查 `~/.workbuddy/skills/` 或 `~/.claude/skills/` 是否有 `grill-me/SKILL.md` |
-| 触发了但行为不对 | description 字段被改坏，或者 skill 文件残缺 | 重新跑 `npx skills@latest add mattpocock/skills` |
-| AI 老是不自动触发 | description 关键词覆盖不够 | 改用显式 `/skill-name` 触发 |
-| `/grill-with-docs` 报错说找不到 CONTEXT.md | 没在项目根目录跑 | 切到项目根目录重开会话，或先跑 `/setup-matt-pocock-skills` |
-| 跑了之后没找到 issue | issue tracker 没配置 | 跑 `/setup-matt-pocock-skills` 配置 |
+| 输入 `/grill-me` 后 AI 当成普通文本 | skill 没装到 AI 工具能识别的位置 | 检查 `~/.workbuddy/skills/` 是否有 `grill-me/SKILL.md` |
+| 触发了但行为不对 | description 字段被改坏 | 重新跑 `npx skills@latest add` |
+| AI 老是不自动触发 | description 关键词覆盖不够 | 改用显式 `/skill-name` |
+| `/grill-with-docs` 报找不到 CONTEXT.md | 没在项目根目录跑 | 切到根目录或先跑 `/setup-matt-pocock-skills` |
 
-### 6.7 一句话记忆
+### 6.5 一句话记忆
 
-> **写一条消息，前面加 `/skill-name`，后面跟你的真实需求，一次发出去。**
->
-> 这就是 skill 的核心使用方式。
-
----
+> **写一条消息，前面加 `/skill-name`，后面跟你的真实需求，一次发出去。** 这就是 skill 的核心使用方式。
 
 ## 七、Engineering 桶——10 个工程类 skill 详解
 
@@ -1139,52 +818,17 @@ package.json:
 
 ## 十、推荐工作流：从想法到上线
 
-把所有 skill 串起来，作者推荐的完整工作流是这样的：
+完整工作流可以串成这样的链路：
 
-```
-┌──────────────────────────────────────────┐
-│ 阶段 1：对齐意图                          │
-│  /grill-with-docs                         │
-│  └─ 盘问 + 维护 CONTEXT.md / ADR          │
-└────────────────┬─────────────────────────┘
-                 │
-                 ▼
-┌──────────────────────────────────────────┐
-│ 阶段 2：凝练成文档                        │
-│  /to-prd                                  │
-│  └─ 把对话变成 PRD issue                  │
-└────────────────┬─────────────────────────┘
-                 │
-                 ▼
-┌──────────────────────────────────────────┐
-│ 阶段 3：拆解为可执行单元                  │
-│  /to-issues                               │
-│  └─ PRD 拆成垂直切片 issue                │
-│                                            │
-│  /triage                                  │
-│  └─ 给 issue 打分诊标签                   │
-└────────────────┬─────────────────────────┘
-                 │
-                 ▼
-┌──────────────────────────────────────────┐
-│ 阶段 4：实现                              │
-│  /tdd          —— 红绿重构写新功能        │
-│  /diagnose     —— 修 bug                  │
-│  /zoom-out     —— 不熟代码时拉视角        │
-│  /prototype    —— 不确定方案时做原型      │
-└────────────────┬─────────────────────────┘
-                 │
-                 ▼
-┌──────────────────────────────────────────┐
-│ 阶段 5：维护                              │
-│  /improve-codebase-architecture           │
-│  └─ 每隔几天扫一遍，找深化机会            │
-└──────────────────────────────────────────┘
+| 阶段 | skill | 产物 |
+|---|---|---|
+| 对齐意图 | `/grill-with-docs` | 敲定方案 + 更新 CONTEXT.md / ADR |
+| 凝练文档 | `/to-prd` | PRD issue |
+| 拆解切片 | `/to-issues` `/triage` | 可独立认领的 issue |
+| 实现 | `/tdd` `/diagnose` `/zoom-out` `/prototype` | 代码 |
+| 维护 | `/improve-codebase-architecture` | 深化机会 |
 
-辅助：
-  /handoff   —— 切换 session 时压缩上下文
-  /caveman   —— 节省 token 的紧凑模式
-```
+辅助：`/handoff` 切换 session、`/caveman` 节省 token。
 
 ### 实战示例：给已有项目加新功能
 
@@ -1229,52 +873,29 @@ package.json:
 
 ## 十一、落地建议
 
-### 10.1 快速开始
+安装命令和 setup 流程见 §6.1，下面是用熟之后的几条经验。
 
-```bash
-# 30 秒安装
-npx skills@latest add mattpocock/skills
+### 11.1 选哪些 skill 装
 
-# 选 skill 时一定要勾上 setup-matt-pocock-skills
-# 然后在 agent 里跑一次：
-/setup-matt-pocock-skills
-```
+| 优先级 | skill | 价值 |
+|---|---|---|
+| **必装** | `/grill-me` 或 `/grill-with-docs` | 投入产出比最高 |
+| **必装** | `/diagnose` | bug 一来就值回票价 |
+| **必装** | `/tdd` | 长期质量的根基 |
+| 强烈推荐 | `/improve-codebase-architecture` | 每两周跑一次 |
+| 强烈推荐 | `/zoom-out` | 接手陌生代码必备 |
+| 强烈推荐 | `/handoff` | 长任务必备 |
+| 按需 | `/caveman` `/prototype` `/git-guardrails-claude-code` | 看场景 |
 
-### 10.2 选哪些 skill 装
+### 11.2 高 ROI 的两条原则
 
-**全员必装**：
-- `/grill-me` 或 `/grill-with-docs` —— 投入产出比最高
-- `/diagnose` —— bug 一来就值回票价
-- `/tdd` —— 长期质量的根基
-
-**强烈推荐**：
-- `/improve-codebase-architecture` —— 每两周跑一次
-- `/zoom-out` —— 接手陌生代码必备
-- `/handoff` —— 长任务必备
-
-**按需装**：
-- `/caveman` —— token 敏感场景
-- `/prototype` —— 探索性工作多的项目
-- `/git-guardrails-claude-code` —— 担心 AI 误删的项目
-
-### 10.3 最佳实践
-
-**1. 先 `/setup-matt-pocock-skills`，再用别的**
-配置文件没建，其他 skill 跑出来效果会打折扣。
-
-**2. CONTEXT.md 要勤维护**
-建议每次 grill 完都让 AI 顺手更新。代码改了术语含义也要同步。
-
-**3. ADR 宁缺毋滥**
+**1. ADR 宁缺毋滥**
 作者明确说："只有满足三个条件才建 ADR。"不要把 ADR 当随手笔记。
 
-**4. 别只用 `/tdd`，要先跑 `/grill-with-docs`**
-先把"写什么"对齐，再用 TDD 写。直接跑 TDD 容易写出"想象中的行为"。
-
-**5. `/improve-codebase-architecture` 不要照单全收**
+**2. `/improve-codebase-architecture` 不要照单全收**
 它给的是建议，不是命令。每条建议都要过你自己的判断。
 
-### 10.4 常见误区
+### 11.3 常见误区
 
 | 误区 | 现实 |
 |---|---|
