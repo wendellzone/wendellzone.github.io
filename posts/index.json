@@ -12,6 +12,19 @@
     "readingTime": 11
   },
   {
+    "slug": "ml-and-dl-quickstart",
+    "title": "从 if-else 到大模型：一次讲清 ML、DL、预训练、微调",
+    "date": "2026-05-20",
+    "tags": [
+      "AI",
+      "机器学习",
+      "深度学习",
+      "大模型"
+    ],
+    "summary": "用一个识猫的例子串起 ML、DL、预训练、微调和对齐，科普向，4 张图讲清楚。",
+    "readingTime": 15
+  },
+  {
     "slug": "mattpocock-skills-deep-dive",
     "title": "给 AI 编码助手装上工程素养——mattpocock/skills 项目深度解析",
     "date": "2026-05-19",
