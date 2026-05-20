@@ -21,11 +21,9 @@ summary: 用一个识猫的例子串起 ML、DL、预训练、微调和对齐，
   <rect x="20" y="20" width="640" height="240" rx="12" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
   <text x="40" y="50" font-family="sans-serif" font-size="14" font-weight="bold" fill="#92400e">人工智能 AI</text>
   <text x="40" y="70" font-family="sans-serif" font-size="11" fill="#92400e">让机器表现出"智能"行为的总目标</text>
-
   <rect x="80" y="90" width="500" height="150" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
   <text x="100" y="120" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e3a8a">机器学习 ML</text>
   <text x="100" y="140" font-family="sans-serif" font-size="11" fill="#1e3a8a">从数据里学规律，而不是手写规则</text>
-
   <rect x="160" y="160" width="380" height="70" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
   <text x="180" y="190" font-family="sans-serif" font-size="14" font-weight="bold" fill="#14532d">深度学习 DL（含大模型）</text>
   <text x="180" y="210" font-family="sans-serif" font-size="11" fill="#14532d">用多层神经网络自动学特征</text>
@@ -64,34 +62,24 @@ summary: 用一个识猫的例子串起 ML、DL、预训练、微调和对齐，
       <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
     </marker>
   </defs>
-
   <text x="20" y="30" font-family="sans-serif" font-size="12" font-weight="bold" fill="#374151">传统 ML：人工提特征 → 模型学权重</text>
-
   <rect x="20" y="50" width="100" height="40" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
   <text x="70" y="74" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7f1d1d">原始图片</text>
-
   <rect x="160" y="50" width="160" height="40" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
   <text x="240" y="68" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#92400e">人工设计特征</text>
   <text x="240" y="82" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#92400e">(边缘/颜色/纹理...)</text>
-
   <rect x="360" y="50" width="120" height="40" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
   <text x="420" y="74" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#1e3a8a">分类器</text>
-
   <rect x="520" y="50" width="100" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
   <text x="570" y="74" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#14532d">是猫 / 不是</text>
-
   <line x1="120" y1="70" x2="158" y2="70" stroke="#6b7280" stroke-width="1.5" marker-end="url(#dl-arrow)"/>
   <line x1="320" y1="70" x2="358" y2="70" stroke="#6b7280" stroke-width="1.5" marker-end="url(#dl-arrow)"/>
   <line x1="480" y1="70" x2="518" y2="70" stroke="#6b7280" stroke-width="1.5" marker-end="url(#dl-arrow)"/>
-
   <text x="20" y="160" font-family="sans-serif" font-size="12" font-weight="bold" fill="#374151">深度学习：原始数据直接进模型，特征自己学</text>
-
   <rect x="20" y="180" width="100" height="40" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
   <text x="70" y="204" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7f1d1d">原始图片</text>
-
   <rect x="160" y="170" width="380" height="120" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
   <text x="350" y="195" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle" fill="#5b21b6">多层神经网络（深度）</text>
-
   <circle cx="200" cy="240" r="10" fill="#a78bfa"/>
   <circle cx="200" cy="270" r="10" fill="#a78bfa"/>
   <circle cx="270" cy="225" r="10" fill="#a78bfa"/>
@@ -104,7 +92,6 @@ summary: 用一个识猫的例子串起 ML、DL、预训练、微调和对齐，
   <circle cx="410" cy="285" r="10" fill="#a78bfa"/>
   <circle cx="490" cy="240" r="10" fill="#a78bfa"/>
   <circle cx="490" cy="270" r="10" fill="#a78bfa"/>
-
   <line x1="200" y1="240" x2="270" y2="225" stroke="#c4b5fd" stroke-width="0.8"/>
   <line x1="200" y1="240" x2="270" y2="255" stroke="#c4b5fd" stroke-width="0.8"/>
   <line x1="200" y1="270" x2="270" y2="255" stroke="#c4b5fd" stroke-width="0.8"/>
@@ -116,10 +103,8 @@ summary: 用一个识猫的例子串起 ML、DL、预训练、微调和对齐，
   <line x1="340" y1="270" x2="410" y2="285" stroke="#c4b5fd" stroke-width="0.8"/>
   <line x1="410" y1="225" x2="490" y2="240" stroke="#c4b5fd" stroke-width="0.8"/>
   <line x1="410" y1="285" x2="490" y2="270" stroke="#c4b5fd" stroke-width="0.8"/>
-
   <rect x="580" y="200" width="80" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
   <text x="620" y="224" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#14532d">是猫</text>
-
   <line x1="120" y1="200" x2="158" y2="225" stroke="#6b7280" stroke-width="1.5" marker-end="url(#dl-arrow)"/>
   <line x1="540" y1="225" x2="578" y2="220" stroke="#6b7280" stroke-width="1.5" marker-end="url(#dl-arrow)"/>
 </svg>
@@ -140,46 +125,34 @@ summary: 用一个识猫的例子串起 ML、DL、预训练、微调和对齐，
       <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
     </marker>
   </defs>
-
   <text x="340" y="26" font-family="sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#111827">放大看一个神经元：加权 → 求和 → 激活</text>
-
   <!-- 输入 -->
   <rect x="30" y="60" width="100" height="34" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.2"/>
   <text x="80" y="82" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7f1d1d">输入 x₁</text>
-
   <rect x="30" y="118" width="100" height="34" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.2"/>
   <text x="80" y="140" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7f1d1d">输入 x₂</text>
-
   <rect x="30" y="176" width="100" height="34" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.2"/>
   <text x="80" y="198" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7f1d1d">输入 x₃</text>
-
   <!-- 权重标注 -->
   <text x="180" y="74" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7c3aed">× w₁</text>
   <text x="180" y="132" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7c3aed">× w₂</text>
   <text x="180" y="190" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#7c3aed">× w₃</text>
-
   <!-- 求和 -->
   <circle cx="280" cy="135" r="36" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
   <text x="280" y="132" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#5b21b6">Σ</text>
   <text x="280" y="150" font-family="sans-serif" font-size="9" text-anchor="middle" fill="#5b21b6">加权求和</text>
-
   <line x1="130" y1="77" x2="248" y2="120" stroke="#7c3aed" stroke-width="1.2" marker-end="url(#nu-arrow)"/>
   <line x1="130" y1="135" x2="244" y2="135" stroke="#7c3aed" stroke-width="1.2" marker-end="url(#nu-arrow)"/>
   <line x1="130" y1="193" x2="248" y2="150" stroke="#7c3aed" stroke-width="1.2" marker-end="url(#nu-arrow)"/>
-
   <!-- 激活函数 -->
   <rect x="360" y="105" width="120" height="60" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
   <text x="420" y="130" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#92400e">激活函数</text>
   <text x="420" y="148" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#92400e">(过阀门)</text>
-
   <line x1="316" y1="135" x2="358" y2="135" stroke="#6b7280" stroke-width="1.2" marker-end="url(#nu-arrow)"/>
-
   <!-- 输出 -->
   <rect x="540" y="115" width="110" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
   <text x="595" y="139" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle" fill="#14532d">输出 y</text>
-
   <line x1="480" y1="135" x2="538" y2="135" stroke="#6b7280" stroke-width="1.2" marker-end="url(#nu-arrow)"/>
-
   <!-- 公式 -->
   <text x="340" y="232" font-family="sans-serif" font-size="12" text-anchor="middle" fill="#374151">y = f(w₁·x₁ + w₂·x₂ + w₃·x₃ + b)</text>
   <text x="340" y="250" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#6b7280" font-style="italic">w 是权重（重要度），b 是偏置（基础分），f 是激活函数（决定信号过不过）</text>
@@ -269,52 +242,41 @@ ChatGPT、Claude、文心一言这些大模型，本质上仍然是深度学习�
       <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
     </marker>
   </defs>
-
   <!-- 阶段 1：预训练 -->
   <rect x="20" y="20" width="160" height="80" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
   <text x="100" y="46" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#7f1d1d">海量原始语料</text>
   <text x="100" y="66" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#7f1d1d">网页 / 书 / 代码</text>
   <text x="100" y="84" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#7f1d1d">数 TB 起步</text>
-
   <rect x="220" y="20" width="180" height="80" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
   <text x="310" y="46" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#5b21b6">预训练 Pretrain</text>
   <text x="310" y="66" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#5b21b6">自监督：猜下一个词</text>
   <text x="310" y="84" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#5b21b6">几千张 GPU · 数月</text>
-
   <rect x="440" y="20" width="180" height="80" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
   <text x="530" y="46" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#1e3a8a">基础模型 Base Model</text>
   <text x="530" y="66" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#1e3a8a">"什么都懂一点"</text>
   <text x="530" y="84" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#1e3a8a">但不会听话</text>
-
   <line x1="180" y1="60" x2="218" y2="60" stroke="#6b7280" stroke-width="1.5" marker-end="url(#lm-arrow)"/>
   <line x1="400" y1="60" x2="438" y2="60" stroke="#6b7280" stroke-width="1.5" marker-end="url(#lm-arrow)"/>
-
   <!-- 中间分隔 -->
   <text x="340" y="135" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#6b7280" font-style="italic">↓ 进入"调教"阶段：把通用能力对齐到具体任务</text>
-
   <!-- 阶段 2：微调 -->
   <rect x="20" y="160" width="160" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
   <text x="100" y="186" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#92400e">指令数据</text>
   <text x="100" y="206" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#92400e">(问题, 标准答案)</text>
   <text x="100" y="224" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#92400e">数千~数十万条</text>
-
   <rect x="220" y="160" width="180" height="80" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
   <text x="310" y="186" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#5b21b6">微调 Fine-tune</text>
   <text x="310" y="206" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#5b21b6">SFT / LoRA</text>
   <text x="310" y="224" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#5b21b6">几张 GPU · 数小时</text>
-
   <rect x="440" y="160" width="180" height="80" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
   <text x="530" y="186" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#14532d">可用模型</text>
   <text x="530" y="206" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#14532d">+RLHF/DPO 做对齐</text>
   <text x="530" y="224" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#14532d">能听话、会拒答</text>
-
   <line x1="180" y1="200" x2="218" y2="200" stroke="#6b7280" stroke-width="1.5" marker-end="url(#lm-arrow)"/>
   <line x1="400" y1="200" x2="438" y2="200" stroke="#6b7280" stroke-width="1.5" marker-end="url(#lm-arrow)"/>
-
   <!-- 复用箭头：基础模型 -> 微调 -->
   <path d="M530 100 Q530 130 310 130 Q310 145 310 158" fill="none" stroke="#7c3aed" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#lm-arrow)"/>
   <text x="340" y="125" font-family="sans-serif" font-size="9" fill="#7c3aed">复用基础模型权重</text>
-
   <!-- 底部说明 -->
   <text x="340" y="280" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#374151" font-weight="bold">预训练 = 通才教育，微调 = 岗前培训，对齐 = 职业道德培训</text>
   <text x="340" y="300" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#6b7280">三件事的成本和数据量差几个数量级</text>
