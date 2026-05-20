@@ -27,7 +27,6 @@ CNN 的设计师非常贴心，提前往机器人脑子里塞了三条"图像常
 
 <svg viewBox="0 0 680 240" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
   <text x="340" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">CNN：放大镜在图上一格格挪</text>
-
   <!-- 输入网格 -->
   <g>
     <text x="130" y="58" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">原图（一只猫）</text>
@@ -61,7 +60,6 @@ CNN 的设计师非常贴心，提前往机器人脑子里塞了三条"图像常
     <rect x="90" y="100" width="90" height="90" fill="none" stroke="#D85A30" stroke-width="2"/>
     <text x="135" y="148" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#993C1D">放大镜</text>
   </g>
-
   <defs>
     <marker id="cnn-arrow-1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -69,7 +67,6 @@ CNN 的设计师非常贴心，提前往机器人脑子里塞了三条"图像常
   </defs>
   <path d="M225 145 L 380 145" fill="none" stroke="#534AB7" stroke-width="1" marker-end="url(#cnn-arrow-1)"/>
   <text x="302" y="138" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">看一格、记一笔</text>
-
   <!-- 输出 -->
   <g>
     <text x="510" y="58" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">特征图（哪里像耳朵）</text>
@@ -86,7 +83,6 @@ CNN 的设计师非常贴心，提前往机器人脑子里塞了三条"图像常
     </g>
     <text x="465" y="150" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff" font-weight="500">✓</text>
   </g>
-
   <text x="340" y="225" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#888">同一副放大镜扫遍全图，所以猫挪到哪儿都能认出来</text>
 </svg>
 
@@ -102,33 +98,25 @@ Transformer 的设计师反其道而行之 —— 什么常识都不预先告诉
 
 <svg viewBox="0 0 680 280" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
   <text x="340" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">Transformer：每一块都跟所有块"对话"</text>
-
   <defs>
     <marker id="attn-arrow-1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
   </defs>
-
   <g font-family="sans-serif" font-size="12" font-weight="500">
     <circle cx="100" cy="160" r="18" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <text x="100" y="164" text-anchor="middle" fill="#3C3489">耳</text>
-
     <circle cx="200" cy="160" r="18" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <text x="200" y="164" text-anchor="middle" fill="#3C3489">脸</text>
-
     <circle cx="300" cy="160" r="18" fill="#D85A30" stroke="#993C1D" stroke-width="0.5"/>
     <text x="300" y="164" text-anchor="middle" fill="#fff">尾</text>
-
     <circle cx="400" cy="160" r="18" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <text x="400" y="164" text-anchor="middle" fill="#3C3489">爪</text>
-
     <circle cx="500" cy="160" r="18" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <text x="500" y="164" text-anchor="middle" fill="#3C3489">草</text>
-
     <circle cx="600" cy="160" r="18" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
     <text x="600" y="164" text-anchor="middle" fill="#3C3489">天</text>
   </g>
-
   <g stroke="#D85A30" fill="none" stroke-width="1">
     <path d="M285 150 Q 200 110 115 150" stroke-width="2" marker-end="url(#attn-arrow-1)"/>
     <path d="M286 152 Q 250 130 215 152" stroke-width="2" marker-end="url(#attn-arrow-1)"/>
@@ -136,7 +124,6 @@ Transformer 的设计师反其道而行之 —— 什么常识都不预先告诉
     <path d="M315 150 Q 410 110 487 150" stroke-dasharray="2 2" marker-end="url(#attn-arrow-1)"/>
     <path d="M315 152 Q 460 100 587 150" stroke-dasharray="2 2" marker-end="url(#attn-arrow-1)"/>
   </g>
-
   <text x="300" y="210" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#993C1D">"尾巴"问其他每一块：「我跟你多相关？」</text>
   <text x="340" y="234" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#888">实线粗 = 相关度高（耳/脸/爪），虚线 = 相关度低（草/天）</text>
   <text x="340" y="254" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#888">相关度不是预设的，是机器人自己学出来的</text>
@@ -165,13 +152,11 @@ Transformer 的设计师反其道而行之 —— 什么常识都不预先告诉
 
 <svg viewBox="0 0 680 240" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
   <text x="340" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">多层 = 先把空间"掰弯"，再切一刀</text>
-
   <defs>
     <marker id="layer-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
   </defs>
-
   <text x="120" y="56" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">原始数据</text>
   <g>
     <circle cx="120" cy="80" r="5" fill="#534AB7"/>
@@ -185,10 +170,8 @@ Transformer 的设计师反其道而行之 —— 什么常识都不预先告诉
     <circle cx="130" cy="118" r="5" fill="#D85A30"/>
   </g>
   <text x="120" y="218" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#888">圈内圈外切不开</text>
-
   <path d="M195 130 L 235 130" fill="none" stroke="#534AB7" stroke-width="1" marker-end="url(#layer-arrow)"/>
   <text x="215" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#666">第 1 层</text>
-
   <text x="340" y="56" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">第 1 层加工后</text>
   <g>
     <circle cx="290" cy="80" r="5" fill="#534AB7"/>
@@ -202,10 +185,8 @@ Transformer 的设计师反其道而行之 —— 什么常识都不预先告诉
     <circle cx="360" cy="178" r="5" fill="#D85A30"/>
   </g>
   <text x="340" y="218" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#888">空间被掰弯，上下分开</text>
-
   <path d="M415 130 L 455 130" fill="none" stroke="#534AB7" stroke-width="1" marker-end="url(#layer-arrow)"/>
   <text x="435" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#666">第 2 层</text>
-
   <text x="555" y="56" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">第 2 层切一刀</text>
   <g>
     <circle cx="500" cy="80" r="5" fill="#534AB7"/>
@@ -257,38 +238,27 @@ Transformer 的设计师反其道而行之 —— 什么常识都不预先告诉
 
 <svg viewBox="0 0 680 240" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
   <text x="340" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#222">两种分层逻辑</text>
-
   <line x1="340" y1="50" x2="340" y2="220" stroke="#ddd" stroke-width="0.5" stroke-dasharray="2 4"/>
-
   <text x="170" y="60" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">CNN：工厂分工</text>
-
   <g font-family="sans-serif" font-size="11">
     <rect x="80" y="80" width="180" height="22" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5" rx="3"/>
     <text x="170" y="96" text-anchor="middle" fill="#3C3489">第 1 层：认边</text>
-
     <rect x="80" y="108" width="180" height="22" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5" rx="3"/>
     <text x="170" y="124" text-anchor="middle" fill="#3C3489">第 2 层：认纹理</text>
-
     <rect x="80" y="136" width="180" height="22" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5" rx="3"/>
     <text x="170" y="152" text-anchor="middle" fill="#3C3489">第 3 层：认五官</text>
-
     <rect x="80" y="164" width="180" height="22" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5" rx="3"/>
     <text x="170" y="180" text-anchor="middle" fill="#3C3489">第 4 层：认整脸</text>
   </g>
   <text x="170" y="208" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#888">每层做不同的活</text>
-
   <text x="510" y="60" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="500" fill="#222">Transformer：反复讨论</text>
-
   <g font-family="sans-serif" font-size="11">
     <rect x="420" y="80" width="180" height="22" fill="#D85A30" stroke="#993C1D" stroke-width="0.5" rx="3"/>
     <text x="510" y="96" text-anchor="middle" fill="#fff">第 1 层：讨论 + 整理思路</text>
-
     <rect x="420" y="108" width="180" height="22" fill="#D85A30" stroke="#993C1D" stroke-width="0.5" rx="3"/>
     <text x="510" y="124" text-anchor="middle" fill="#fff">第 2 层：讨论 + 整理思路</text>
-
     <rect x="420" y="136" width="180" height="22" fill="#D85A30" stroke="#993C1D" stroke-width="0.5" rx="3"/>
     <text x="510" y="152" text-anchor="middle" fill="#fff">第 3 层：讨论 + 整理思路</text>
-
     <rect x="420" y="164" width="180" height="22" fill="#D85A30" stroke="#993C1D" stroke-width="0.5" rx="3"/>
     <text x="510" y="180" text-anchor="middle" fill="#fff">第 4 层：讨论 + 整理思路</text>
   </g>
