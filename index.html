@@ -638,7 +638,10 @@ function buildRenderer() {
 function renderMarkdown(md) {
   for (const k in _slugCount) delete _slugCount[k];
   marked.setOptions({ gfm: true, breaks: false, renderer: buildRenderer() });
-  return DOMPurify.sanitize(marked.parse(md || ''), { ADD_ATTR: ['data-code', 'id'] });
+  return DOMPurify.sanitize(marked.parse(md || ''), {
+    ADD_ATTR: ['data-code', 'id'],
+    USE_PROFILES: { html: true, svg: true, svgFilters: true }
+  });
 }
 
 /* 拦截文章内 TOC 锚点：href=#xxx 走平滑滚动，不让 SPA 路由把它当成新路径 */
