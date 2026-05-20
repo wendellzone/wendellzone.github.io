@@ -1,5 +1,17 @@
 [
   {
+    "slug": "cnn-to-transformer",
+    "title": "从卷积到注意力：神经网络的两种归纳偏置",
+    "date": "2026-05-20",
+    "tags": [
+      "AI",
+      "机器学习",
+      "科普"
+    ],
+    "summary": "从教机器人认猫的故事讲起，看 CNN 和 Transformer 两种架构如何用不同的归纳偏置看世界。",
+    "readingTime": 11
+  },
+  {
     "slug": "mattpocock-skills-deep-dive",
     "title": "给 AI 编码助手装上工程素养——mattpocock/skills 项目深度解析",
     "date": "2026-05-19",
