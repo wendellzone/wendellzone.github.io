@@ -40,7 +40,9 @@
     --panel: #ffffff;
     --panel-hover: #f6f8fa;
     --max-width: 1080px;
-    --reading-width: 760px;
+    --reading-width: 880px;
+    --toc-width: 220px;
+    --toc-gap: 48px;
   }
   :root[data-theme="dark"] {
     --bg: #0f1117;
@@ -101,23 +103,53 @@
     margin: 0 auto;
     padding: 32px 24px 80px;
   }
+  /* 阅读页（文章 / Skill 详情 / About）：正文 + 右侧目录 双栏 grid，整体居中 */
   main.reading {
+    max-width: calc(var(--reading-width) + var(--toc-gap) + var(--toc-width));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--toc-width);
+    column-gap: var(--toc-gap);
+    align-items: start;
+  }
+  /* 第一列：正文相关元素（back-link / article-head / article） */
+  main.reading > :not(.toc) {
+    grid-column: 1;
+    min-width: 0;
     max-width: var(--reading-width);
   }
+  /* 第二列：TOC，跨满整列 */
+  main.reading > .toc {
+    grid-column: 2;
+    grid-row: 1 / span 99;
+  }
+  /* 容器装不下双栏时（比如平板 / 中等屏），切回单栏正文居中 */
+  @media (max-width: 1180px) {
+    main.reading {
+      display: block;
+      max-width: var(--reading-width);
+    }
+    main.reading > :not(.toc) { max-width: none; }
+  }
 
-  /* 文章右侧时间轴目录 */
+  /* 文章右侧时间轴目录（阅读页：作为 main grid 第二列，sticky） */
   .toc {
-    position: fixed;
-    top: 110px;
-    right: max(20px, calc((100vw - 1080px) / 2 - 240px));
-    width: 220px;
-    max-height: calc(100vh - 160px);
+    position: sticky;
+    top: 24px;
+    width: var(--toc-width);
+    max-height: calc(100vh - 48px);
     overflow-y: auto;
     font-size: 14px;
     line-height: 1.55;
     padding: 4px 0 4px 14px;
     border-left: 1px solid var(--border);
     z-index: 10;
+  }
+  /* 主页归档 TOC：维持原来的 fixed 风格（在 main 之外，不参与 grid） */
+  .toc.toc-archive {
+    position: fixed;
+    top: 110px;
+    right: max(20px, calc((100vw - 1080px) / 2 - 240px));
+    max-height: calc(100vh - 160px);
   }
   .toc a, .toc a:hover, .toc a:visited {
     color: var(--fg-soft);
@@ -200,7 +232,7 @@
     font-weight: 600;
   }
   .toc::-webkit-scrollbar { width: 0; }
-  @media (max-width: 1560px) { .toc { display: none; } }
+  @media (max-width: 1180px) { .toc { display: none; } }
 
   /* 列表页 */
   .post-list { list-style: none; padding: 0; margin: 0; }
@@ -358,6 +390,26 @@
   }
   .markdown th { background: var(--code-bg); }
   .markdown img { max-width: 100%; border-radius: 4px; }
+  /* 内联 SVG / 图示：默认吃满正文宽度，按 viewBox 等比放大；
+     旧文章里写过的 style="max-width:680px" 会被这里覆盖，让图变得更清晰 */
+  .markdown > svg,
+  .markdown p > svg,
+  .markdown figure > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100% !important;
+    margin: 14px auto;
+  }
+  .markdown figure {
+    margin: 14px 0;
+    text-align: center;
+  }
+  .markdown figure figcaption {
+    color: var(--fg-muted);
+    font-size: 12.5px;
+    margin-top: 6px;
+  }
   .markdown hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
   .markdown a { color: var(--link); }
 
@@ -694,7 +746,8 @@ function buildToc(articleEl) {
         </li>`).join('')}
     </ol>
   `;
-  document.body.appendChild(toc);
+  // 阅读页 TOC 作为 main grid 第二列；如果 main 不存在，兜底到 body
+  (document.getElementById('app') || document.body).appendChild(toc);
 
   // 点击平滑滚动
   toc.querySelectorAll('a').forEach(a => {
@@ -742,7 +795,7 @@ function buildArchiveToc(posts) {
 
   const toc = document.createElement('nav');
   toc.id = 'toc';
-  toc.className = 'toc';
+  toc.className = 'toc toc-archive';
   toc.innerHTML = `
     <div class="toc-title">归档</div>
     <ol>
@@ -844,7 +897,7 @@ function route() {
   // 非 SPA 路由（例如文章内锚点 #some-heading），忽略，不切视图
   if (hash !== '/' && !hash.startsWith('/')) return;
   destroyToc();
-  const isReading = /^\/post\/|^\/about$/.test(hash);
+  const isReading = /^\/post\/|^\/skill\/|^\/about$/.test(hash);
   app.classList.toggle('reading', isReading);
   if (hash === '/' || hash === '') return renderList();
   if (hash === '/about')           return renderAbout();
