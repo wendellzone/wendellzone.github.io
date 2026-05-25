@@ -1,5 +1,17 @@
 [
   {
+    "slug": "agent-memory",
+    "title": "Agent 的记忆是一团乱麻——两层 Memory 架构的得与失",
+    "date": "2026-05-25",
+    "tags": [
+      "AI",
+      "Agent",
+      "工程实践"
+    ],
+    "summary": "聊聊 LLM 为什么天生没记忆、两层文件式 Memory 的得与失，以及写代码 Agent 该不该有 Memory 的两派之争。",
+    "readingTime": 12
+  },
+  {
     "slug": "cnn-to-transformer",
     "title": "从卷积到注意力：神经网络的两种归纳偏置",
     "date": "2026-05-20",
