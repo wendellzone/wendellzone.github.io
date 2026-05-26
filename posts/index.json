@@ -21,7 +21,7 @@
       "科普"
     ],
     "summary": "从生物神经元的三段式结构推到 30 行伪代码，讲清一颗人工神经元如何加权求和并通过激活函数引入非线性。",
-    "readingTime": 6
+    "readingTime": 9
   },
   {
     "slug": "agent-memory",

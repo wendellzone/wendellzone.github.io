@@ -169,6 +169,75 @@ def relu(z):
 
 为什么需要它？因为如果没有激活函数，无论叠多少层神经元，整个网络等价于一次线性变换——能力上限被锁死。激活函数引入非线性，整个深度学习才有"表达任意函数"的潜力。
 
+## 神经元怎么"做决策"
+
+到这里很多人会卡一下：加权求和 + 激活，**输出的是个数字**，不是"是 / 否"。神经元自己不下结论，**结论是在数字外面套一层规则得到的**。
+
+举个垃圾邮件分类的例子，输入是词频，目标是输出"垃圾 / 正常"。一颗神经元做决策的完整链路是这样：
+
+1. 收输入 `x`：[包含"中奖"的次数, 是否含链接, 发件人是否陌生, ...]
+2. 加权求和 `z = w·x + b`：把每个特征的"危险分"加起来
+3. 过激活函数 `a = sigmoid(z)`：把任意大小的 `z` 压到 0~1，相当于"是垃圾的概率"
+4. 套一条阈值规则 `if a > 0.5: 垃圾 else: 正常`
+
+第 4 步才是真正的"决策"。前三步只在算一个**置信度**。
+
+<svg viewBox="0 0 680 360" width="100%" style="max-width:680px;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="dec-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="360" fill="#fafafa"/>
+  <text x="340" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#222">从输入到决策的完整流水线</text>
+  <rect x="40" y="60" width="140" height="60" rx="8" fill="#cfe8ff" stroke="#1971c2" stroke-width="2"/>
+  <text x="110" y="85" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0c4a8e">① 收输入</text>
+  <text x="110" y="105" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#0c4a8e">x = [3, 1, 1, ...]</text>
+  <line x1="180" y1="90" x2="240" y2="90" stroke="#555" stroke-width="2" marker-end="url(#dec-arrow)"/>
+  <rect x="240" y="60" width="160" height="60" rx="8" fill="#fff3cd" stroke="#d39e00" stroke-width="2"/>
+  <text x="320" y="85" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#333">② 加权求和</text>
+  <text x="320" y="105" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">z = w·x + b = 2.4</text>
+  <line x1="400" y1="90" x2="460" y2="90" stroke="#555" stroke-width="2" marker-end="url(#dec-arrow)"/>
+  <rect x="460" y="60" width="180" height="60" rx="8" fill="#d4f1d4" stroke="#28a745" stroke-width="2"/>
+  <text x="550" y="85" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e6f3a">③ 激活函数</text>
+  <text x="550" y="105" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e6f3a">a = sigmoid(z) = 0.92</text>
+  <line x1="340" y1="120" x2="340" y2="170" stroke="#555" stroke-width="2" marker-end="url(#dec-arrow)"/>
+  <text x="350" y="150" font-family="sans-serif" font-size="11" fill="#888">把 a 喂给阈值规则</text>
+  <polygon points="340,180 470,230 340,280 210,230" fill="#ffe0e0" stroke="#c92a2a" stroke-width="2"/>
+  <text x="340" y="222" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#c92a2a">④ 阈值判断</text>
+  <text x="340" y="242" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#c92a2a">a &gt; 0.5 ?</text>
+  <line x1="210" y1="230" x2="120" y2="230" stroke="#555" stroke-width="2" marker-end="url(#dec-arrow)"/>
+  <text x="165" y="222" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">是</text>
+  <rect x="40" y="200" width="80" height="60" rx="8" fill="#ffd4d4" stroke="#c92a2a" stroke-width="2"/>
+  <text x="80" y="234" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#c92a2a">垃圾邮件</text>
+  <line x1="470" y1="230" x2="560" y2="230" stroke="#555" stroke-width="2" marker-end="url(#dec-arrow)"/>
+  <text x="515" y="222" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">否</text>
+  <rect x="560" y="200" width="80" height="60" rx="8" fill="#d4f1d4" stroke="#28a745" stroke-width="2"/>
+  <text x="600" y="234" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1e6f3a">正常邮件</text>
+  <text x="340" y="320" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#666">前 3 步在算"置信度"，第 4 步才是真正的"决策"</text>
+</svg>
+
+### 为什么不让神经元直接输出"是 / 否"
+
+历史上最早的感知机用的就是 Step 函数，输出非 0 即 1，**确实**直接给答案。但后来全部换成了 Sigmoid / ReLU 这类**连续**函数，原因有二：
+
+- **训练需要梯度**。Step 函数除了跳变点处导数全为 0，反向传播没法把误差往回传，权重就更新不动。
+- **概率比硬标签信息量大**。`0.92` 和 `0.51` 都判为"垃圾"，但前者比后者自信得多。下游可以根据置信度做不同处理（直接拦截 / 进二次审核 / 放行）。
+
+### 多分类怎么决策
+
+二分类靠"过阈值"，多分类靠"取最大"。比如手写数字识别，10 个神经元各输出一个分数，再经过 softmax 归一化成 10 个概率，最后规则是 `argmax`：
+
+```python
+scores = [n.forward(x) for n in neurons]   # 10 个数
+probs  = softmax(scores)                   # 10 个概率，加起来 = 1
+prediction = argmax(probs)                 # 取概率最大那个的下标
+```
+
+注意：**`argmax` 这一步同样是在神经元外面发生的**。神经元只负责给出每个类别的"信心分"，最终决策由调用者按规则裁定。
+
+记住这个分层就能解开很多困惑：神经元算的是数字，决策是规则，**两者可以独立替换**——同一组神经元，搭配不同的阈值或裁定规则，可以服务于完全不同的业务目标。
+
 ## 一颗神经元能干什么
 
 单颗神经元能力有限。它本质上是一个**线性分类器**：在输入空间里画一条直线（或一个超平面），线一侧输出大、另一侧输出小。
