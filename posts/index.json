@@ -12,6 +12,18 @@
     "readingTime": 11
   },
   {
+    "slug": "neuron-basics",
+    "title": "神经元到底在算什么：从生物到伪代码",
+    "date": "2026-05-26",
+    "tags": [
+      "深度学习",
+      "神经网络",
+      "科普"
+    ],
+    "summary": "从生物神经元的三段式结构推到 30 行伪代码，讲清一颗人工神经元如何加权求和并通过激活函数引入非线性。",
+    "readingTime": 6
+  },
+  {
     "slug": "agent-memory",
     "title": "Agent 的记忆是一团乱麻——两层 Memory 架构的得与失",
     "date": "2026-05-25",
