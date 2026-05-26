@@ -1,5 +1,17 @@
 [
   {
+    "slug": "knowledge-distillation",
+    "title": "知识蒸馏入门：让小模型学会大模型的语气",
+    "date": "2026-05-26",
+    "tags": [
+      "AI",
+      "机器学习",
+      "模型压缩"
+    ],
+    "summary": "用最朴素的师生 + 软标签 + 温度框架讲清楚知识蒸馏：小模型怎么学会大模型的判断质感。",
+    "readingTime": 11
+  },
+  {
     "slug": "agent-memory",
     "title": "Agent 的记忆是一团乱麻——两层 Memory 架构的得与失",
     "date": "2026-05-25",
