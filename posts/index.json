@@ -25,19 +25,6 @@
     "readingTime": 8
   },
   {
-    "slug": "dram-long-term",
-    "title": "你认为 DRAM 可以长期持有吗？",
-    "date": "2026-07-01",
-    "tags": [
-      "投资",
-      "DRAM",
-      "存储芯片",
-      "周期股"
-    ],
-    "summary": "AI 拉长 DRAM 周期但未改其周期股本质，用数据拆解能否长期持有。",
-    "readingTime": 7
-  },
-  {
     "slug": "knowledge-distillation",
     "title": "知识蒸馏入门：让小模型学会大模型的\"语气\"",
     "date": "2026-05-26",
