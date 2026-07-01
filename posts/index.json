@@ -1,5 +1,17 @@
 [
   {
+    "slug": "smh-long-term-hold",
+    "title": "你认为SMH可以长期持有吗？",
+    "date": "2026-07-01",
+    "tags": [
+      "投资",
+      "ETF",
+      "半导体"
+    ],
+    "summary": "SMH 十年年化 36.89%、Sharpe 0.88，但集中度、估值、波动都是隐忧。可持有，但要配纪律",
+    "readingTime": 9
+  },
+  {
     "slug": "knowledge-distillation",
     "title": "知识蒸馏入门：让小模型学会大模型的\"语气\"",
     "date": "2026-05-26",
