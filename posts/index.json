@@ -1,17 +1,5 @@
 [
   {
-    "slug": "claude-sonnet-5-vs-opus-4-8",
-    "title": "Sonnet 5 vs Opus 4.8：中端新主力对决旗舰标杆",
-    "date": "2026-07-02",
-    "tags": [
-      "Claude",
-      "AI模型",
-      "选型"
-    ],
-    "summary": "Sonnet 5 agentic 能力逼近 Opus 4.8、价格只有 60%。本文对比两者能力、价格与安全机制，给出选型决策。",
-    "readingTime": 8
-  },
-  {
     "slug": "approaching-fable-5",
     "title": "走近Fable 5",
     "date": "2026-07-02",
