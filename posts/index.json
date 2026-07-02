@@ -38,18 +38,6 @@
     "readingTime": 7
   },
   {
-    "slug": "claude-sonnet-5-vs-fable-5",
-    "title": "Sonnet 5 vs Fable 5 vs Sonnet 4.7：三档 Claude 选型指南",
-    "date": "2026-07-01",
-    "tags": [
-      "Claude",
-      "AI模型",
-      "选型"
-    ],
-    "summary": "Anthropic 同日发布 Sonnet 5 并解禁 Fable 5，本文对比三档 Claude 模型的能力、价格与安全机制，给出选型决策。",
-    "readingTime": 10
-  },
-  {
     "slug": "knowledge-distillation",
     "title": "知识蒸馏入门：让小模型学会大模型的\"语气\"",
     "date": "2026-05-26",
