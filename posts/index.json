@@ -12,18 +12,6 @@
     "readingTime": 10
   },
   {
-    "slug": "走近fable-5",
-    "title": "走近Fable 5",
-    "date": "2026-07-02",
-    "tags": [
-      "AI",
-      "大模型",
-      "Anthropic"
-    ],
-    "summary": "Anthropic 首个公开 Mythos 级模型，发布三天遭出口管制封禁，18 天后解禁。用数据拆解能力代差、安全分流与监管风波。",
-    "readingTime": 10
-  },
-  {
     "slug": "sp500-vs-csi300",
     "title": "指数生而不平等",
     "date": "2026-07-02",
