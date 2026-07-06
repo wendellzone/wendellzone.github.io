@@ -39,5 +39,45 @@
     "size": 9538,
     "file": "github-cli.zip",
     "install": "WorkBuddy: 解压到 ~/.workbuddy/skills/ 即可；或导入 zip"
+  },
+  {
+    "slug": "humanizer-zh",
+    "name": "humanizer-zh",
+    "version": "1.0.0",
+    "summary": "去除中文文本中的 AI 生成痕迹，让表达更自然、更像人写。",
+    "tags": [
+      "写作",
+      "中文",
+      "编辑"
+    ],
+    "triggers": [
+      "润色这段文字",
+      "去掉 AI 味",
+      "让文本更自然",
+      "审阅中文文案"
+    ],
+    "size": 13639,
+    "file": "humanizer-zh.zip",
+    "install": "Codex: 解压到 ~/.codex/skills/ 即可；重启 Codex 后生效"
+  },
+  {
+    "slug": "superpowers",
+    "name": "superpowers",
+    "version": "5.1.4",
+    "summary": "一组用于提升 agent 工作质量的流程型 skills，覆盖需求澄清、TDD、调试、计划、审查和完成前验证。",
+    "tags": [
+      "流程",
+      "工程质量",
+      "Agent"
+    ],
+    "triggers": [
+      "开始开发任务",
+      "修 bug",
+      "写实施计划",
+      "完成前验证"
+    ],
+    "size": 171211,
+    "file": "superpowers.zip",
+    "install": "Codex: 解压后按 plugin 或单个 skill 方式导入；重启 Codex 后生效"
   }
 ]
