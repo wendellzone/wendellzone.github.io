@@ -1,9 +1,10 @@
 ---
-title: opencode 实现原理：从 Agent 入门到 Core Runtime
+title: OpenCode 实现原理：从 Agent 入门到 Core Runtime
 date: 2026-07-05
 tags: [AI, Agent, 工程实践, opencode]
 summary: 面向想转向 Agent 开发的技术人员，拆解 opencode 的整体架构、核心运行循环、Session、SystemContext、ToolRegistry、Permission 和 Compaction。
 ---
+
 
 ## 写在前面
 
