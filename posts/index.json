@@ -1,5 +1,18 @@
 [
   {
+    "slug": "opencode-context-assembly",
+    "title": "OpenCode 是如何组装上下文的？",
+    "date": "2026-07-06",
+    "tags": [
+      "AI",
+      "Agent",
+      "工程实践",
+      "opencode"
+    ],
+    "summary": "书接上一篇 runtime 拆解，聚焦 opencode 每轮如何组装上下文。",
+    "readingTime": 12
+  },
+  {
     "slug": "opencode-agent-runtime-deep-dive",
     "title": "opencode 实现原理：从 Agent 入门到 Core Runtime",
     "date": "2026-07-05",
