@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>前言与如何阅读 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <!-- ===================== 侧边栏 ===================== -->
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <!-- ===================== 正文 ===================== -->
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">前言 · Preface</div>
+          <div class="ch-bignum">00</div>
+          <h1>前言与如何阅读</h1>
+          <p class="lede">在正式动手之前，先花五分钟把这本书的"使用说明书"读一遍——它会告诉你这本书为谁而写、怎么读最省力。</p>
+        </header>
+
+        <h2>这本书是写给谁的</h2>
+        <p>如果你符合下面任意一条，那么这本书就是为你准备的：</p>
+        <ul>
+          <li>听说过"AI Agent（智能体）"这个词，但完全不知道它在代码层面到底是什么；</li>
+          <li>会一点 Python（能看懂函数、字典、类），但从没写过和大语言模型（LLM）打交道的程序；</li>
+          <li>想搞清楚一个 Agent 框架"到底在背后做了什么"，而不是只会调用现成的库。</li>
+        </ul>
+
+        <div class="callout analogy">
+          <span class="callout-title">一句话类比</span>
+          <p>如果说 LLM（大语言模型）是一颗聪明但只会"说话"的大脑，那么 <strong>Agent 就是给这颗大脑配上手脚、工具箱和一本岗位说明书</strong>，让它不仅能聊天，还能真正"动手办事"。这本书要讲的 Swarm，就是 OpenAI 开源的一个极简"配手脚"框架。</p>
+        </div>
+
+        <h2>我们要精读的对象：Swarm</h2>
+        <p><a href="https://github.com/openai/swarm" target="_blank" rel="noopener">Swarm</a> 是 OpenAI 官方放出的一个<strong>实验性、教学性质</strong>的多智能体框架。它最大的优点是——<strong>小</strong>。整个核心库只有四个文件、几百行代码：</p>
+        <ul>
+          <li><code>swarm/types.py</code> — 定义数据结构（Agent、Response、Result）；</li>
+          <li><code>swarm/util.py</code> — 工具函数（把 Python 函数转成 JSON、合并流式数据）；</li>
+          <li><code>swarm/core.py</code> — 引擎核心（<code>run()</code> 主循环）；</li>
+          <li><code>swarm/repl/repl.py</code> — 一个方便的命令行交互循环。</li>
+        </ul>
+        <p>正因为它足够小，我们才有可能把<strong>每一行代码</strong>都读懂。读懂了 Swarm，你就掌握了几乎所有 Agent 框架共通的核心套路。</p>
+
+        <div class="callout warn">
+          <span class="callout-title">重要提醒</span>
+          <p>Swarm 是官方标注的"教育用途、非生产就绪"项目（其后继者是 OpenAI Agents SDK）。我们读它不是为了拿去做产品，而是因为它像一台<strong>拆开外壳的透明发动机</strong>——最适合用来学习原理。</p>
+        </div>
+
+        <h2>本书的组织方式</h2>
+        <p>本书采用<strong>"概念驱动、自底向上"</strong>的路线：先补齐概念，再跑最小示例，然后一点点加特性，最后回到源码逐行精读、全景复盘。章节地图如下：</p>
+        <ul class="goals">
+          <li><strong>第 01 章</strong>：先把 LLM、function calling、Agent 这几个词彻底讲清楚（零代码）。</li>
+          <li><strong>第 02 章</strong>：用 5 行代码跑通你的第一个 Agent。</li>
+          <li><strong>第 03 章</strong>：拆开 Swarm 的三个核心数据结构。</li>
+          <li><strong>第 04–06 章</strong>：逐个点亮 Agent 的三大能力——用工具、带记忆、会转接。</li>
+          <li><strong>第 07–09 章</strong>：钻进引擎内部，读懂 <code>run()</code> 主循环、流式输出与交互循环。</li>
+          <li><strong>第 10 章</strong>：把所有拼图拼成一张全景图，并指出下一步方向。</li>
+        </ul>
+
+        <h2>每一章长什么样</h2>
+        <p>为了让你读得省力，每一章都遵循固定的七段式结构：</p>
+        <ol>
+          <li><strong>章首题图</strong>：大大的章号、标题和一句话导语，让你一眼知道这章讲啥。</li>
+          <li><strong>本章目标</strong>：读完你能获得什么。</li>
+          <li><strong>前置概念</strong>：零基础铺垫，配大量生活类比。</li>
+          <li><strong>源码逐行精读</strong>：重点段落逐行讲"为什么这么写"，配手绘 SVG 图解。</li>
+          <li><strong>可运行代码片段</strong>：给出完整、可复制、能真正跑起来的代码和预期输出。</li>
+          <li><strong>常见疑问 FAQ</strong>：把你可能卡住的地方提前答掉。</li>
+          <li><strong>小结 + 上下章导航</strong>。</li>
+        </ol>
+
+        <h2>怎么读最省力</h2>
+        <div class="callout tip">
+          <span class="callout-title">阅读建议</span>
+          <p>1. <strong>按顺序读</strong>。本书是自底向上搭积木，后一章大量依赖前一章的概念。<br>
+             2. <strong>亲手跑代码</strong>。每章的代码片段都能复制运行，点代码块右上角"复制"按钮即可。看懂 ≠ 会写，跑一遍才算数。<br>
+             3. <strong>看不懂就先记住"类比"</strong>。所有硬概念都配了生活类比，实在卡住就先抓住类比往下走，回头再补细节。</p>
+        </div>
+
+        <h2>动手前的准备</h2>
+        <p>如果你想边读边跑代码，需要准备两样东西（第 02 章会再详细说一遍）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>终端 · 安装与配置</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash"># 1. 安装 Swarm（需要 Python 3.10+）
+pip install git+https://github.com/openai/swarm.git
+
+# 2. 配置 OpenAI API Key（换成你自己的）
+export OPENAI_API_KEY="sk-..."</code></pre>
+        </div>
+        <div class="callout note">
+          <span class="callout-title">没有 API Key 也没关系</span>
+          <p>本书大量篇幅在讲"框架本身的代码逻辑"，很多内容（比如 <code>function_to_json</code> 怎么把函数转成 JSON）不需要联网、不花钱也能跑。真正需要调用大模型的地方，我们会明确标注。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>我 Python 很菜，能读懂吗？</summary>
+            <div class="faq-body">
+              <p>能。你只需要认识函数、字典、列表和类的基本写法。凡是稍微进阶的语法（比如装饰器、生成器 <code>yield</code>、模式匹配 <code>match</code>），我们都会在用到时现场解释。</p>
+            </div>
+          </details>
+          <details>
+            <summary>不学 Swarm，直接学更新的框架不行吗？</summary>
+            <div class="faq-body">
+              <p>可以，但会更吃力。新框架为了"好用"包了很多层封装，反而看不清本质。Swarm 把 Agent 的核心机制（主循环、工具调用、交接）用最少的代码暴露出来，学完它，再看任何框架都会有"原来如此"的感觉。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>这本书带<strong>零基础读者</strong>通过精读 OpenAI Swarm 入门 Agent 开发。</li>
+            <li>Swarm 的优点是<strong>极小</strong>——四个核心文件，适合逐行读懂原理。</li>
+            <li>本书<strong>自底向上</strong>组织，建议按顺序读、亲手跑代码、抓住类比。</li>
+            <li>准备好 Python 3.10+ 和（可选的）OpenAI API Key，就可以开始了。</li>
+          </ul>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="index.html">
+            <span class="nav-dir">← 上一页</span>
+            <span class="nav-label">封面与目录</span>
+          </a>
+          <a class="next" href="chapter-01.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">01 · 从零理解 Agent</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

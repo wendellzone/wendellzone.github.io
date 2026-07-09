@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>给 Agent 接真实数据库 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第八章 · Chapter 08</div>
+          <div class="ch-bignum">08</div>
+          <h1>给 Agent 接真实数据库</h1>
+          <p class="lede">上一章 <code>airline</code> 里的工具都是桩函数——<code>initiate_refund</code> 只 <code>return "Refund initiated"</code>，什么也没真的做。可现实中的客服机器人要能<strong>查订单、下单、真退款</strong>。这一章我们看 <code>personal_shopper</code>：它的工具函数会实打实地读写一个 SQLite 数据库。你会看到，当 LLM 生成的参数直接进 SQL 时，<strong>安全</strong>是绕不开的头等大事。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>看懂 <code>personal_shopper</code> 的三个工具函数（<code>refund_item</code> / <code>order_item</code> / <code>notify_customer</code>）如何真正读写 SQLite。</li>
+          <li>掌握<strong>参数化查询</strong>——为什么 LLM 的输出是"不可信输入"，绝不能拿去拼 SQL 字符串。</li>
+          <li>理解 <code>database.py</code> 里的三个工程手法：<strong>连接单例</strong>、<strong>幂等建表 / 幂等写入</strong>、<strong>显式事务提交</strong>。</li>
+          <li>想清楚一个架构问题：状态该放在 <strong>数据库</strong>里，还是像第 03 章那样放在 <code>context_variables</code> 里？</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版里你已经知道：Swarm 的"工具"就是普通 Python 函数，Agent 的 <code>functions</code> 列表列出它能调用的工具；LLM 决定调哪个、传什么参数，引擎负责真正执行并把返回值喂回去。之前所有示例的工具都很"干净"——要么返回字符串，要么返回另一个 Agent（handoff）。这一章的关键变化只有一个：<strong>工具函数里出现了副作用，而且是最典型的一种——数据库读写</strong>。一旦工具能改动外部世界的真实状态，我们对它的要求就完全不同了：正确、安全、可重试。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：给员工一把能开数据库的钥匙</span>
+          <p>之前的 Agent 像一个只会"演习"的新员工——你让他"办理退款"，他答一句"退款已办好"，但保险柜根本没打开。现在你要给他一把<strong>真能打开数据库保险柜的钥匙</strong>。这当然更有用，但也更危险：他填错单号会动到别人的账户，甚至他<strong>照着话术念的一句话</strong>都可能被当成开锁指令（这就是 SQL 注入）。所以给钥匙的同时，必须配一套<strong>严格的领用规范</strong>——这正是本章的重点。</p>
+        </div>
+
+        <h2>一、三个会"真的动手"的工具</h2>
+        <p><code>personal_shopper</code> 有两个业务 Agent：<strong>销售</strong>（<code>sales_agent</code>）和<strong>退款</strong>（<code>refunds_agent</code>），外加一个分诊台（<code>triage_agent</code>）路由到它们。真正干活的是三个工具函数，它们都在 <code>main.py</code> 里，每一个都会打开数据库连接、执行 SQL。先看退款（<code>main.py</code> 第 10–29 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/main.py · 第 10–29 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def refund_item(user_id, item_id):
+    """Initiate a refund based on the user ID and item ID.
+    Takes as input arguments in the format '{"user_id":"1","item_id":"3"}'
+    """
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT amount FROM PurchaseHistory
+        WHERE user_id = ? AND item_id = ?
+    """,
+        (user_id, item_id),
+    )
+    result = cursor.fetchone()
+    if result:
+        amount = result[0]
+        print(f"Refunding ${amount} to user ID {user_id} for item ID {item_id}.")
+    else:
+        print(f"No purchase found for user ID {user_id} and item ID {item_id}.")
+    print("Refund initiated")</code></pre>
+        </div>
+        <p>逐行拆开看，这就是一段教科书式的"安全数据库读取"：</p>
+        <ul>
+          <li><strong>第 14–15 行</strong>：<code>database.get_connection()</code> 拿到连接，<code>conn.cursor()</code> 开游标。注意工具函数自己<strong>不负责建连接</strong>，只向 <code>database</code> 模块要——连接的生命周期被收拢到一处管理（第二节详解）。</li>
+          <li><strong>第 16–22 行</strong>：一条 <code>SELECT amount FROM PurchaseHistory WHERE user_id = ? AND item_id = ?</code>。<strong>划重点：SQL 语句里用的是 <code>?</code> 占位符</strong>，真实值 <code>(user_id, item_id)</code> 作为<strong>第二个参数（元组）</strong>单独传给 <code>execute</code>。这就是"参数化查询"，本章的安全核心，第四节专门讲。</li>
+          <li><strong>第 23 行</strong>：<code>fetchone()</code> 取一行结果（只需要一条），比 <code>fetchall()</code> 更贴合"精确查一笔购买记录"的语义。</li>
+          <li><strong>第 24–28 行</strong>：<code>if result:</code> 分支——查到了就报出金额，没查到就提示"没有这笔购买"。<strong>先验证购买记录存在，再谈退款</strong>，这是一个朴素但重要的业务校验：不能凭空给一个不存在的订单退款。</li>
+        </ul>
+        <p>再看下单（<code>main.py</code> 第 58–82 行），它比退款多一步——不仅要<strong>读</strong>，还要<strong>写</strong>：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/main.py · 第 58–82 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def order_item(user_id, product_id):
+    """Place an order for a product based on the user ID and product ID.
+    Takes as input arguments in the format '{"user_id":"1","product_id":"2"}'"""
+    date_of_purchase = datetime.datetime.now()
+    item_id = random.randint(1, 300)
+
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT product_id, product_name, price FROM Products
+        WHERE product_id = ?
+    """,
+        (product_id,),
+    )
+    result = cursor.fetchone()
+    if result:
+        product_id, product_name, price = result
+        print(
+            f"Ordering product {product_name} for user ID {user_id}. The price is {price}."
+        )
+        # Add the purchase to the database
+        database.add_purchase(user_id, date_of_purchase, item_id, price)
+    else:
+        print(f"Product {product_id} not found.")</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 61–62 行</strong>：下单前先在<strong>代码里</strong>生成两样东西——下单时间 <code>date_of_purchase</code> 和商品实例编号 <code>item_id = random.randint(1, 300)</code>。这两个值<strong>不由 LLM 决定</strong>，而是程序自己生成的。这是一个好习惯：像时间戳、流水号这类"事实数据"，交给代码而不是让模型编。</li>
+          <li><strong>第 66–72 行</strong>：同样是参数化的 <code>SELECT ... FROM Products WHERE product_id = ?</code>——<strong>先查商品是否存在、拿到真实价格</strong>。价格来自数据库，而不是听信用户或 LLM 报的数。</li>
+          <li><strong>第 74–80 行</strong>：查到商品后，用数据库里的真实 <code>price</code>，调 <code>database.add_purchase(...)</code> 把这笔购买<strong>写入</strong> <code>PurchaseHistory</code> 表。注意写库逻辑被封装在 <code>database</code> 模块里，工具函数只管"编排业务"，不直接写 <code>INSERT</code>（这个分工第二节会展开）。</li>
+          <li><strong>第 81–82 行</strong>：商品不存在就报错，不会写入任何东西。</li>
+        </ul>
+        <p>第三个工具 <code>notify_customer</code>（第 32–55 行）是一次纯读取带分支：<code>SELECT email, phone FROM Users WHERE user_id = ?</code> 取出联系方式，再按 <code>method</code>（<code>"email"</code> 或 <code>"phone"</code>）选一种通知方式，缺对应字段就提示不可用。三个工具放在一起，正好覆盖了数据库的三种典型操作：<strong>只读查询</strong>（refund 的验证、notify）、<strong>读后写</strong>（order）、<strong>带条件的读取分支</strong>（notify）。</p>
+
+        <h2>二、database.py：连接、建表、写入的工程手法</h2>
+        <p>三个工具都靠 <code>database.py</code> 提供的底层能力。这个模块虽小，却藏着三个很实用的工程习惯。</p>
+
+        <h3>2.1 连接单例：一个进程只开一条连接</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/database.py · 第 3–11 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python"># global connection
+conn = None
+
+
+def get_connection():
+    global conn
+    if conn is None:
+        conn = sqlite3.connect("application.db")
+    return conn</code></pre>
+        </div>
+        <p><code>conn</code> 是一个<strong>模块级全局变量</strong>，初始为 <code>None</code>。第一次调用 <code>get_connection()</code> 时才真正 <code>sqlite3.connect(...)</code>（<strong>延迟初始化</strong>），之后每次调用都复用同一条连接。这就是经典的<strong>单例模式</strong>：整个进程共用一条数据库连接。</p>
+        <p>为什么这样够用？因为 <code>run_demo_loop</code> 是<strong>单线程、同步</strong>的——一次只处理一个用户的一轮对话，工具函数串行执行，不存在并发争用。省掉了连接池的复杂度，也避免了每次工具调用都重新建连接的开销。</p>
+
+        <h3>2.2 幂等建表：CREATE TABLE IF NOT EXISTS</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/database.py · 第 14–58 行（摘录）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def create_database():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS Users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            first_name TEXT,
+            last_name TEXT,
+            email TEXT UNIQUE,
+            phone TEXT
+        )
+    """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS PurchaseHistory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            date_of_purchase TEXT,
+            item_id INTEGER,
+            amount REAL,
+            FOREIGN KEY (user_id) REFERENCES Users(user_id)
+        )
+    """
+    )
+    # ... Products 表同理 ...
+    conn.commit()</code></pre>
+        </div>
+        <p>关键是 <code>IF NOT EXISTS</code>：无论运行多少次，表存在就跳过、不存在才建，绝不报"表已存在"的错。这让 <code>initialize_database()</code> 可以<strong>每次启动都无脑调一遍</strong>而不出问题——这叫<strong>幂等</strong>（同一操作执行一次和执行多次结果相同）。另外注意 <code>PurchaseHistory</code> 上有 <code>FOREIGN KEY (user_id) REFERENCES Users(user_id)</code>，在数据库层面声明了"购买必须属于某个用户"的关系。</p>
+
+        <h3>2.3 幂等写入 + 显式事务</h3>
+        <p><code>order_item</code> 调用的 <code>add_purchase</code>（第 84–111 行）把"幂等"贯彻到了写入上：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/database.py · 第 84–111 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def add_purchase(user_id, date_of_purchase, item_id, amount):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Check if the purchase already exists
+    cursor.execute(
+        """
+        SELECT * FROM PurchaseHistory
+        WHERE user_id = ? AND item_id = ? AND date_of_purchase = ?
+    """,
+        (user_id, item_id, date_of_purchase),
+    )
+    if cursor.fetchone():
+        return
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO PurchaseHistory (user_id, date_of_purchase, item_id, amount)
+            VALUES (?, ?, ?, ?)
+        """,
+            (user_id, date_of_purchase, item_id, amount),
+        )
+
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database Error: {e}")</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 89–98 行（先查后写）</strong>：写入前先 <code>SELECT</code> 检查"这笔购买是否已存在"（同一 user + item + 时间），存在就直接 <code>return</code>，<strong>不重复插入</strong>。这就是幂等写。</li>
+          <li><strong>第 100–107 行</strong>：真正的 <code>INSERT</code>，依旧是 <code>?</code> 占位 + 参数元组。</li>
+          <li><strong>第 109 行（显式 commit）</strong>：<code>conn.commit()</code>。SQLite（以及大多数数据库驱动）默认开启事务，<strong>不 <code>commit</code> 的写入不会真正落盘</strong>。这行是"确认下单"那一下——漏了它，程序看起来跑通了，重启后数据却没了。</li>
+          <li><strong>第 110–111 行（错误兜底）</strong>：<code>try/except sqlite3.Error</code> 捕获数据库异常，打印而不是让整个 Agent 循环崩掉。工具函数出错时应该<strong>优雅降级</strong>，把问题变成一条可控的消息，而不是抛出未捕获异常炸穿主循环（呼应第 05 章讲的健壮性边界）。</li>
+        </ul>
+
+        <div class="callout">
+          <span class="callout-title">为什么"幂等"对 Agent 尤其重要</span>
+          <p>LLM 驱动的系统天生带重试色彩：模型可能因为没看清返回值而<strong>再调一次同一个工具</strong>，网络抖动也可能触发重发。如果 <code>add_purchase</code> 不做去重，用户一句"下单"就可能被记两笔账。<strong>幂等写让"多调几次"变得安全</strong>——这是把工具接上真实副作用后，必须补上的一课。</p>
+        </div>
+
+        <h2>三、Agent 编排：分诊 + 双向回流</h2>
+        <p>三个工具挂在两个业务 Agent 上，再由分诊台路由（<code>main.py</code> 第 95–126 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/main.py · 第 95–126 行（摘录）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">refunds_agent = Agent(
+    name="Refunds Agent",
+    description="""...必须一次问齐 user_id 和 item_id 才能发起退款...""",
+    functions=[refund_item, notify_customer],
+)
+
+sales_agent = Agent(
+    name="Sales Agent",
+    description="""...下单必须同时有 user ID 和 product ID，缺一不可...""",
+    functions=[order_item, notify_customer],
+)
+
+triage_agent = create_triage_agent(
+    name="Triage Agent",
+    instructions="""...判断用户是要下单还是退款，转给对应 Agent...""",
+    agents=[sales_agent, refunds_agent],
+    add_backlinks=True,          # ← 自动给每个下游 Agent 装一个转回分诊的工具
+)</code></pre>
+        </div>
+        <p>这里出现了一个上一章没见过的便捷写法：<code>create_triage_agent(...)</code> 是 Swarm 内置的<strong>辅助工厂</strong>（<code>swarm.agents</code>），它帮你把 <code>agents=[...]</code> 里的每个 Agent 自动生成对应的转移函数挂到分诊台上。关键是 <code>add_backlinks=True</code>——它会给<strong>每个下游 Agent 反向装一个"转回分诊"的工具</strong>，效果和上一章手写的 <code>transfer_to_triage</code> 一样，是双向 handoff 的"自动挡"版本。<code>main.py</code> 第 128–129 行的 <code>for f in triage_agent.functions: print(f.__name__)</code> 就是把自动生成的这些转移函数名打印出来，方便你确认路由确实接好了。</p>
+
+        <div class="deepbox">
+          <details>
+            <summary>横向对比：状态放数据库 vs 放 context_variables</summary>
+            <div class="deepbox-body">
+              <p>第 03 章讲过 Swarm 的"档案袋" <code>context_variables</code>：一个随对话流转的字典，用来携带跨轮次的上下文（比如客户资料）。上一章 <code>airline</code> 就把客户和航班信息放在里面。可 <code>personal_shopper</code> <strong>完全没用 <code>context_variables</code></strong>——它把状态全放进了数据库。为什么？</p>
+              <ul>
+                <li><strong>放 <code>context_variables</code>（进程内、随会话）</strong>：适合<strong>本次对话的临时上下文</strong>——当前客户是谁、正在处理哪张航班。轻量、无需外部依赖，但会话一结束就没了，也不能被别的进程/别的会话看到。</li>
+                <li><strong>放数据库（进程外、持久化）</strong>：适合<strong>需要长期留存、跨会话共享的业务事实</strong>——用户账户、历史订单、商品价格。<code>personal_shopper</code> 的"购买历史"显然属于这类：这次买的东西，下次退款时还得查得到。</li>
+              </ul>
+              <p>所以两者不是二选一，而是<strong>按数据的寿命和作用域分工</strong>：会话级、临时的放档案袋；业务级、要持久的放数据库。真实系统里常常两者并用——用 <code>context_variables</code> 存"当前登录用户 ID"，再拿它去数据库查这个用户的订单。</p>
+            </div>
+          </details>
+        </div>
+
+        <h2>四、安全红线：参数化查询防 SQL 注入</h2>
+        <p>现在讲本章最重要的一件事。回看每一条 SQL，值都是通过 <code>?</code> 占位符 + 参数元组传进去的，<strong>从没有把变量拼进 SQL 字符串</strong>。这不是风格问题，是<strong>安全红线</strong>。</p>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：绝不要用 f-string 拼 SQL —— LLM 的输出是不可信输入</span>
+          <p>假设你图省事，把 <code>refund_item</code> 写成这样：</p>
+          <pre><code class="language-python"># ❌ 千万不要这样写
+cursor.execute(
+    f"SELECT amount FROM PurchaseHistory WHERE user_id = {user_id} AND item_id = {item_id}"
+)</code></pre>
+          <p>这里的 <code>user_id</code> / <code>item_id</code> 是 <strong>LLM 根据用户对话生成的参数</strong>。而用户能操纵 LLM 说什么。如果用户诱导模型把 <code>item_id</code> 填成 <code>3 OR 1=1</code>，甚至 <code>3; DROP TABLE PurchaseHistory; --</code>，拼出来的 SQL 就变成了一条<strong>攻击语句</strong>——轻则返回全表数据（<code>WHERE ... OR 1=1</code> 恒真），重则删表。这就是<strong>SQL 注入</strong>。</p>
+          <p><strong>正确做法</strong>就是本章一直在用的参数化查询：SQL 里写 <code>?</code>，值单独作为元组传给 <code>execute</code>。数据库驱动会把这些值当作<strong>纯数据</strong>处理，无论内容是什么都不会被解释成 SQL 语法——<code>3 OR 1=1</code> 会被老老实实当成一个字符串去匹配 <code>item_id</code>，匹配不到，安全返回空。</p>
+          <p><strong>为什么在 Agent 场景下格外要命</strong>：传统 Web 应用里，注入源是"用户表单"，你还能在前端做点校验；而在 Agent 里，SQL 的参数直接来自<strong>大模型的自由生成</strong>，中间隔着一个你无法完全约束的黑盒。把 LLM 的一切输出都当成<strong>最高级别的不可信输入</strong>，是接数据库时的第一心法。</p>
+        </div>
+
+        <figure class="figure">
+          <svg width="760" height="360" viewBox="0 0 760 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agent 下单写入 SQLite 的时序图">
+            <defs>
+              <marker id="ar8" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="ar8b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+            <!-- 三条泳道标题 -->
+            <rect x="30" y="20" width="170" height="46" rx="11" fill="#335566" stroke="#243c48" stroke-width="1.5"/>
+            <text x="115" y="41" text-anchor="middle" font-family="serif" font-size="13" fill="#fff">Sales Agent</text>
+            <text x="115" y="58" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#F3ECDF">LLM 决策层</text>
+
+            <rect x="295" y="20" width="170" height="46" rx="11" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+            <text x="380" y="41" text-anchor="middle" font-family="serif" font-size="13" fill="#fff">order_item()</text>
+            <text x="380" y="58" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#F3ECDF">工具函数</text>
+
+            <rect x="560" y="20" width="170" height="46" rx="11" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="645" y="41" text-anchor="middle" font-family="serif" font-size="13" fill="#fff">SQLite</text>
+            <text x="645" y="58" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">application.db</text>
+
+            <!-- 生命线 -->
+            <line x1="115" y1="66" x2="115" y2="340" stroke="#D3C4A8" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="380" y1="66" x2="380" y2="340" stroke="#D3C4A8" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="645" y1="66" x2="645" y2="340" stroke="#D3C4A8" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+            <!-- ① 调用工具 -->
+            <path d="M118 100 L377 100" stroke="#B96A1B" stroke-width="2" marker-end="url(#ar8)"/>
+            <text x="247" y="93" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#5a3608">① 调 order_item(user_id, product_id)</text>
+
+            <!-- ② 查询验证产品 -->
+            <path d="M383 138 L642 138" stroke="#B96A1B" stroke-width="2" marker-end="url(#ar8)"/>
+            <text x="512" y="131" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#5a3608">② SELECT ... WHERE product_id = ?</text>
+            <text x="512" y="153" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8a4e12">参数化占位符，验证产品并取真实价格</text>
+
+            <!-- 返回价格 -->
+            <path d="M642 178 L385 178" stroke="#335566" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar8b)"/>
+            <text x="512" y="172" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#335566">返回 (product_name, price)</text>
+
+            <!-- ③ INSERT -->
+            <path d="M383 216 L642 216" stroke="#B96A1B" stroke-width="2" marker-end="url(#ar8)"/>
+            <text x="512" y="209" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#5a3608">③ add_purchase → INSERT (?, ?, ?, ?)</text>
+            <text x="512" y="231" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8a4e12">先查重（幂等），再写入</text>
+
+            <!-- ④ commit -->
+            <path d="M383 260 L642 260" stroke="#B96A1B" stroke-width="2" marker-end="url(#ar8)"/>
+            <text x="512" y="253" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#5a3608">④ conn.commit() 事务落盘</text>
+
+            <!-- ⑤ 返回给 LLM -->
+            <path d="M377 300 L118 300" stroke="#335566" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar8b)"/>
+            <text x="247" y="294" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#335566">⑤ 结果回给 LLM，继续对话</text>
+          </svg>
+          <figcaption>图 8-1：一次"下单"的完整时序。②③ 两条 SQL 都用 <code>?</code> 参数化占位符，把 LLM 生成的参数当纯数据传入；④ 的 <code>commit()</code> 才让写入真正落盘；⑤ 结果回到 LLM 后对话继续。</figcaption>
+        </figure>
+
+        <h2>五、把它跑起来</h2>
+        <div class="callout">
+          <span class="callout-title">运行前提</span>
+          <p>只需要 <strong>OpenAI API Key</strong>（<code>export OPENAI_API_KEY=...</code>）。<strong>SQLite 是 Python 标准库内置的</strong>（<code>import sqlite3</code>），<strong>无需安装或启动任何外部数据库服务</strong>——数据就落在当前目录的一个文件 <code>application.db</code> 里。这也是本章选它做示例的原因：真实的读写副作用，零外部依赖。<code>cd examples/personal_shopper &amp;&amp; python3 main.py</code> 即可。<strong>不想真跑也行</strong>，顺着下面的逻辑读就能理解。</p>
+        </div>
+        <p>启动时，<code>main.py</code> 第 86 行先调 <code>database.initialize_database()</code>：它幂等建表，并预置了 3 个用户、3 条购买历史、3 件商品（<code>database.py</code> 第 154–188 行）。比如用户 <code>1</code>（Alice）有一笔 <code>item_id=101</code>、金额 <code>99.99</code> 的购买；商品表里有 <code>product_id=7</code>（Hat, 19.99）等。有了这些种子数据，就能立刻演示退款和下单。第 89–91 行还会 <code>preview_table</code> 打印每张表的前几行，方便你确认数据就位。最后第 133 行把分诊台丢进 <code>run_demo_loop</code>：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/personal_shopper/main.py · 第 85–133 行（骨架）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python"># Initialize the database
+database.initialize_database()          # 幂等建表 + 预置种子数据
+
+# Preview tables
+database.preview_table("Users")
+database.preview_table("PurchaseHistory")
+database.preview_table("Products")
+
+# ... 定义 refunds_agent / sales_agent / triage_agent ...
+
+if __name__ == "__main__":
+    run_demo_loop(triage_agent, debug=False)</code></pre>
+        </div>
+        <p>下面是一段<strong>推演</strong>的交互（示意，LLM 实际措辞会不同；这里重点看"分诊 → 工具执行 → 数据库副作用"的路径）：</p>
+        <div class="output-block">
+          <div class="out-label">预期交互（推演 · 一次退款）</div>
+          <pre>用户: 我要退货退款。
+[Triage Agent] → 转移到 Refunds Agent            # 分诊判断这是退款类
+[Refunds Agent] 请提供您的 user ID 和要退款的 item ID。   # description 要求一次问齐
+用户: user_id 是 1，item_id 是 101。
+[Refunds Agent] → 调用 refund_item(user_id=1, item_id=101)
+Refunding $99.99 to user ID 1 for item ID 101.   # SELECT 查到了那笔购买（种子数据）
+Refund initiated
+[Refunds Agent] 已为您发起 101 号商品 99.99 的退款。</pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期交互（推演 · 一次下单，含写库）</div>
+          <pre>用户: 我想买东西。
+[Triage Agent] → 转移到 Sales Agent
+[Sales Agent] 请提供您的 user ID 和想购买的 product ID。
+用户: user_id 1，product_id 7。
+[Sales Agent] → 调用 order_item(user_id=1, product_id=7)
+Ordering product Hat for user ID 1. The price is 19.99.   # 价格来自 Products 表，不是用户报的
+# → add_purchase 先查重、再 INSERT、再 commit，一条新购买写入 PurchaseHistory
+[Sales Agent] 已为您下单：Hat，19.99。</pre>
+        </div>
+        <p>注意"下单"这条：价格 <code>19.99</code> 是从 <code>Products</code> 表<strong>查出来的真实值</strong>，不是用户或 LLM 说了算；写入还经过了幂等去重和显式 <code>commit</code>。这就是"工具接上真实数据库"后，一次调用背后真正发生的事。</p>
+
+        <h2>六、工具直连数据库，值不值</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">工具直连 DB（personal_shopper 的做法）vs 经 service / ORM 层</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">工具函数里直接写 SQL</div>
+              <ul>
+                <li><strong>简单直接</strong>：一个函数从头到尾看得清，适合示例、原型、小工具。</li>
+                <li>没有额外的抽象层，<strong>心智负担低</strong>，改起来快。</li>
+                <li>只要坚持参数化查询，安全底线也守得住。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">经 service / ORM 数据访问层</div>
+              <ul>
+                <li><strong>权限与校验集中</strong>：可在一处统一做"这个用户能不能退这笔款"的鉴权，工具不必各写各的。</li>
+                <li><strong>更易测试</strong>：业务逻辑与 SQL 解耦，可替换成内存实现做单测。</li>
+                <li><strong>可复用、可演进</strong>：换数据库、加缓存、加审计日志都只动这一层。</li>
+                <li>代价是更重、更多样板代码，小项目里可能过度设计。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>结论：<code>personal_shopper</code> 作为示例，直连是合理的——它想让你一眼看清"工具怎么读写库"。但一旦进真实生产，随着<strong>权限、校验、审计、可测性</strong>的要求上来，把数据访问收拢到一个独立的 service/ORM 层几乎是必然的。无论走哪条路，<strong>参数化查询这条安全红线永远不能退让</strong>。</p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>为什么全局用一条连接就够了？真实并发场景也这样吗？</summary>
+            <div class="faq-body">
+              <p>够用是因为 <code>run_demo_loop</code> 是<strong>单线程同步</strong>的——同一时刻只有一次工具调用在跑，不会有两条线程同时抢连接。真实的 Web 服务通常是多请求并发的，那时单条连接会成为瓶颈甚至出错，需要换成<strong>连接池</strong>（每个请求借一条、用完还回）。SQLite 本身也不擅长高并发写；生产环境多会换 PostgreSQL / MySQL。这里的单例是"单进程演示"下的合理简化。</p>
+            </div>
+          </details>
+          <details>
+            <summary>如果 LLM 把 <code>user_id</code> 填成了一段恶意 SQL，会怎样？</summary>
+            <div class="faq-body">
+              <p>因为用了参数化查询，<strong>什么也不会发生</strong>——那段"恶意 SQL"会被数据库当成一个普通字符串值去和 <code>user_id</code> 列做匹配，匹配不到就返回空。这正是参数化的价值：它在数据和代码之间划了一道硬边界，值永远只是值，绝不会被解释成 SQL 语法。反之若用 f-string 拼接，那段字符串就会被当成 SQL 执行——这就是注入。</p>
+            </div>
+          </details>
+          <details>
+            <summary>漏写 <code>conn.commit()</code> 会有什么现象？</summary>
+            <div class="faq-body">
+              <p>程序当场看起来一切正常，<code>INSERT</code> 也没报错，但数据只停留在<strong>未提交的事务</strong>里。一旦进程退出或连接关闭而没 <code>commit</code>，这些写入会被<strong>回滚丢弃</strong>——重启后你会发现"明明下过单，历史里却查不到"。这类 bug 极隐蔽，因为它不报错。凡是有写操作（<code>INSERT</code>/<code>UPDATE</code>/<code>DELETE</code>），记得配一次显式 <code>commit</code>。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么 <code>item_id</code> 和下单时间由代码生成，而不让 LLM 填？</summary>
+            <div class="faq-body">
+              <p>因为它们是<strong>系统事实</strong>，不是用户意图。下单时间应当是"服务器此刻的真实时间"，流水号应当由系统保证唯一——这些都不该交给可能产生幻觉的模型。让 LLM 只负责它擅长的部分（理解用户想买什么），把确定性的事实数据留给代码，是接工具时划分职责的一条通用原则。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><code>personal_shopper</code> 的三个工具（<code>refund_item</code> / <code>order_item</code> / <code>notify_customer</code>）会<strong>真正读写 SQLite</strong>，覆盖只读查询、读后写、条件分支三种典型操作。</li>
+            <li><strong>参数化查询是安全红线</strong>：SQL 里用 <code>?</code> 占位、值单独作元组传入。把 LLM 的输出当最高级别的不可信输入，<strong>绝不用 f-string 拼 SQL</strong>，否则 SQL 注入门户大开。</li>
+            <li><code>database.py</code> 的三个工程手法：<strong>连接单例</strong>（单进程复用一条连接）、<strong>幂等建表 / 幂等写入</strong>（适配 Agent 的重试特性）、<strong>显式 <code>commit</code></strong>（写入必须提交才落盘）。</li>
+            <li>本例<strong>不用 <code>context_variables</code></strong>，状态全放数据库——会话级临时上下文放档案袋，业务级持久事实放数据库，按数据寿命分工。</li>
+            <li>工具直连 DB 简单直接，适合示例；生产中因权限、校验、可测性需求，通常会引入 service/ORM 层——但参数化查询永远不退让。</li>
+          </ul>
+          <p style="margin-bottom:0;">现在 Agent 能读写结构化数据了。可如果用户问的是"GPT-4 支持多长上下文？"这种<strong>知识型</strong>问题，答案不在数据库表里，而藏在成堆的文档中呢？下一章我们让 Agent 学会<strong>先翻资料再作答</strong>——这就是 RAG。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-07.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">07 · 分诊编排实战</span>
+          </a>
+          <a class="next" href="chapter-09.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">09 · 让 Agent 会查资料（RAG）</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

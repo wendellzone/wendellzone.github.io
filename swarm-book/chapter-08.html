@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流式输出 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第八章 · Chapter 08</div>
+          <div class="ch-bignum">08</div>
+          <h1>流式输出</h1>
+          <p class="lede">为什么 ChatGPT 的字是一个个"蹦"出来的？本章拆开 <code>run_and_stream</code>，看 Swarm 如何把 LLM 吐出的一堆小碎片，实时拼成一句完整的话。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解<strong>流式（streaming）</strong>和普通输出的区别，以及它为什么体验更好。</li>
+          <li>明白 LLM 是把回复切成很多小<strong>碎片（chunk / delta）</strong>一点点吐出来的。</li>
+          <li>逐行读懂 <code>core.py</code> 的生成器函数 <code>run_and_stream</code>。</li>
+          <li>读懂 <code>util.py</code> 的 <code>merge_chunk</code> / <code>merge_fields</code>——如何把碎片<strong>拼</strong>成完整消息。</li>
+        </ul>
+
+        <h2>一、先讲个类比：上菜的两种方式</h2>
+        <p>回忆一下前面几章：我们调用 <code>client.run(...)</code>，程序会一直转，直到 LLM 说完最终答案，才<strong>一次性</strong>把结果返回给我们。这就像去餐厅点了一桌菜，厨师非要等<strong>所有菜都做好</strong>，才用一个大托盘一起端上来——你只能干等，前面十分钟屏幕上一个字都没有。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：做好一道先上一道</span>
+          <p><strong>流式（stream）</strong>则相反：厨师做好一道就先端一道。对应到聊天界面，就是你看到文字<strong>一个字一个字往外蹦</strong>。虽然总时间差不多，但用户"立刻看到反应"，体验好太多——这正是 ChatGPT 打字机效果的由来。</p>
+        </div>
+
+        <h2>二、LLM 是"碎片式"吐字的</h2>
+        <p>要实现打字机效果，光靠我们自己"假装"一个字一个字显示是不行的——因为普通 <code>run</code> 拿到结果时，整句话早就生成完了。真正的流式，需要 LLM <strong>本身</strong>支持一边生成一边往外送。</p>
+        <p>事实上，LLM 内部就是一个词一个词（准确说是一个 <em>token</em> 一个 token）生成的。开启流式后，它不再"憋着"等全部生成完，而是<strong>每生成一小段就立刻发出来</strong>。这一小段，官方叫 <strong>chunk（数据块）</strong>，每个 chunk 里携带的那一点点新增内容，叫 <strong>delta（增量）</strong>。</p>
+
+        <div class="callout note">
+          <span class="callout-title">delta 长什么样</span>
+          <p>一个 delta 可能只带几个字，比如 <code>{"content": "你"}</code>、下一个 <code>{"content": "好"}</code>；如果 LLM 正在"点单"调用工具，delta 里带的就是工具调用参数的<strong>一小段字符串</strong>，比如 <code>{"tool_calls": [{"function": {"arguments": "{\"loc"}}]}</code>。碎片本身<strong>不完整</strong>，必须靠我们把它们<strong>接起来</strong>。</p>
+        </div>
+
+        <p>所以流式处理的核心任务只有一件事：<strong>把源源不断到来的碎片，累加拼接成一条完整的消息</strong>。下面这张图就是本章的灵魂：</p>
+
+        <figure class="figure">
+          <svg width="760" height="360" viewBox="0 0 760 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="流式 chunk 合并示意图">
+            <defs>
+              <marker id="arrH" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="arrS" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- LLM -->
+            <path d="M70 40 L120 68 L120 124 L70 152 L20 124 L20 68 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="70" y="92" text-anchor="middle" font-family="serif" font-size="15" fill="#fff">LLM</text>
+            <text x="70" y="110" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">流式吐出</text>
+
+            <!-- 碎片 chunk 一串 -->
+            <text x="270" y="30" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">一串小碎片 chunk（每个只带一点点）</text>
+            <rect x="150" y="46" width="66" height="34" rx="8" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="183" y="68" text-anchor="middle" font-family="monospace" font-size="13" fill="#B96A1B">"你"</text>
+            <rect x="226" y="46" width="66" height="34" rx="8" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="259" y="68" text-anchor="middle" font-family="monospace" font-size="13" fill="#B96A1B">"好"</text>
+            <rect x="302" y="46" width="66" height="34" rx="8" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="335" y="68" text-anchor="middle" font-family="monospace" font-size="13" fill="#B96A1B">"呀"</text>
+            <rect x="378" y="46" width="72" height="34" rx="8" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="414" y="68" text-anchor="middle" font-family="monospace" font-size="13" fill="#B96A1B">"，有"</text>
+            <rect x="460" y="46" width="72" height="34" rx="8" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="496" y="68" text-anchor="middle" font-family="monospace" font-size="13" fill="#B96A1B">"什么"</text>
+            <text x="576" y="68" font-family="serif" font-size="20" fill="#8A7F72">…</text>
+
+            <!-- LLM 到碎片 -->
+            <path d="M122 82 L146 68" stroke="#B96A1B" stroke-width="2" marker-end="url(#arrH)"/>
+
+            <!-- 碎片流向 merge_chunk -->
+            <path d="M340 88 L340 138" stroke="#335566" stroke-width="2" marker-end="url(#arrS)"/>
+
+            <!-- merge_chunk 处理器 -->
+            <rect x="200" y="150" width="360" height="58" rx="12" fill="#33556615" stroke="#335566" stroke-width="1.5"/>
+            <text x="380" y="176" text-anchor="middle" font-family="monospace" font-size="15" fill="#335566">merge_chunk( message, delta )</text>
+            <text x="380" y="196" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">逐个把碎片累加进正在拼装的 message</text>
+
+            <!-- 处理器到最终消息 -->
+            <path d="M380 210 L380 250" stroke="#335566" stroke-width="2" marker-end="url(#arrS)"/>
+
+            <!-- 累加过程小示意 -->
+            <text x="620" y="176" font-family="monospace" font-size="12" fill="#4A423A">"" → "你"</text>
+            <text x="620" y="192" font-family="monospace" font-size="12" fill="#4A423A">→ "你好" → …</text>
+
+            <!-- 完整 message -->
+            <rect x="150" y="258" width="460" height="76" rx="12" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="380" y="248" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">拼成一条完整 message</text>
+            <text x="170" y="284" font-family="monospace" font-size="12" fill="#335566">role</text>
+            <text x="230" y="284" font-family="sans-serif" font-size="12" fill="#4A423A">"assistant"</text>
+            <text x="170" y="308" font-family="monospace" font-size="12" fill="#335566">content</text>
+            <text x="238" y="308" font-family="sans-serif" font-size="12" fill="#4A423A">"你好呀，有什么可以帮你的吗？"</text>
+          </svg>
+          <figcaption>图 8-1：流式的核心——LLM 吐出一串小碎片，<code>merge_chunk</code> 把它们逐个累加，最终拼成一条完整消息。</figcaption>
+        </figure>
+
+        <h2>三、run_and_stream：一个"边算边吐"的生成器</h2>
+        <p>处理流式的主角，是 <code>core.py</code> 里的 <code>run_and_stream</code> 方法（第 139–229 行）。在读代码前，先扫清一个概念障碍：<strong>生成器（generator）</strong>。</p>
+
+        <div class="callout tip">
+          <span class="callout-title">什么是生成器？</span>
+          <p>普通函数用 <code>return</code> 一次性交出结果就结束了。<strong>生成器</strong>用的是 <code>yield</code>：它能算出一个结果就<strong>先"吐"一个</strong>出去（同时函数暂停在原地），等外面来取下一个时再<strong>接着往下算</strong>。<br>
+          好比一条"传送带"：不是等所有货物打包好一起交付，而是做好一件就往带子上放一件，外面的人边收边用。这正好契合流式——碎片来一个、往外送一个。</p>
+        </div>
+
+        <p>先看它的开头：这是个生成器（函数体里有 <code>yield</code>），负责准备好"账本"，然后进入主循环。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/core.py · run_and_stream（准备阶段）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def run_and_stream(
+    self,
+    agent: Agent,
+    messages: List,
+    context_variables: dict = {},
+    model_override: str = None,
+    debug: bool = False,
+    max_turns: int = float("inf"),
+    execute_tools: bool = True,
+):
+    active_agent = agent                          # 当前"上班"的 Agent（可能会被交接替换）
+    context_variables = copy.deepcopy(context_variables)  # 深拷贝，避免污染调用者的字典
+    history = copy.deepcopy(messages)             # 深拷贝对话历史，本函数内部随意增删
+    init_len = len(messages)                      # 记住"原始历史"有多长，最后好切出"新增部分"
+
+    while len(history) - init_len &lt; max_turns:    # 只要没超过最大轮数就一直转</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">active_agent = agent</div>
+            <div class="lr-note">当前干活的 Agent。之所以用一个新变量而不是直接用 <b>agent</b>，是因为工具可能触发<b>交接</b>（第06章），这里要能随时被换成别的 Agent。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">context_variables = copy.deepcopy(...)
+history = copy.deepcopy(messages)</div>
+            <div class="lr-note"><b>深拷贝</b>：复制一份全新的、和外面互不相干的数据。<b>为什么这么写：</b>函数内部要往 history 里疯狂追加消息，如果不拷贝，就会把调用者传进来的原始列表也改乱——这是很隐蔽的 bug。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">init_len = len(messages)</div>
+            <div class="lr-note">先记下"原始历史"有多长。函数结尾会用 <b>history[init_len:]</b> 精准切出"这次新产生的消息"，不把用户原来传进来的旧消息重复返回。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">while len(history) - init_len &lt; max_turns:</div>
+            <div class="lr-note">主循环。条件是"新增消息数还没到上限"。<b>max_turns</b> 是保险丝——万一 Agent 陷入"不停调工具"的死循环，也能强制停下。</div>
+          </div>
+        </div>
+
+        <p>进入循环后，第一步是搭一个<strong>空消息模板</strong>，等着往里塞碎片。请特别注意 <code>tool_calls</code> 用了 <code>defaultdict</code>：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/core.py · 空消息模板</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">    message = {
+        "content": "",                    # 文本内容，初始空字符串，碎片会往后拼
+        "sender": agent.name,             # 这条消息由谁说的
+        "role": "assistant",              # 角色固定是"助手"
+        "function_call": None,
+        "tool_calls": defaultdict(        # 关键：工具调用用 defaultdict 存
+            lambda: {
+                "function": {"arguments": "", "name": ""},
+                "id": "",
+                "type": "",
+            }
+        ),
+    }</code></pre>
+        </div>
+
+        <div class="callout tip">
+          <span class="callout-title">defaultdict 的巧思：碎片乱序也不怕</span>
+          <p>普通字典你访问一个不存在的键会<strong>报错</strong>。<code>defaultdict</code> 则会在你首次访问某个键时，<strong>自动</strong>用你给的模板造一个空值填进去。<br>
+          为什么这里非它不可？因为 LLM 可能<strong>同时</strong>调用多个工具，碎片带着 <code>index</code>（第几个工具）陆续到达，而且<strong>顺序不保证</strong>。有了 defaultdict，代码写 <code>message["tool_calls"][2]</code> 时，哪怕 2 号工具的碎片先到、里面还什么都没有，也能自动开好一个空槽位往里塞——不用提前知道总共有几个工具、也不怕碎片乱序。</p>
+        </div>
+
+        <p>模板备好，就去问 LLM。注意这次传的是 <code>stream=True</code>——这是和普通 <code>run</code> 唯一的实质差别，它让 <code>get_chat_completion</code> 返回一个<strong>可迭代的碎片流</strong>而不是一整条消息。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/core.py · 发起流式请求并消费碎片</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        # 用当前历史和 Agent 发起请求，stream=True 表示"要流式"
+        completion = self.get_chat_completion(
+            agent=active_agent,
+            history=history,
+            context_variables=context_variables,
+            model_override=model_override,
+            stream=True,
+            debug=debug,
+        )
+
+        yield {"delim": "start"}              # 向外发一个"回复开始"的信号
+        for chunk in completion:              # 遍历源源不断到来的碎片
+            delta = json.loads(chunk.choices[0].delta.json())  # 取出这一片的增量数据
+            if delta["role"] == "assistant":
+                delta["sender"] = active_agent.name  # 补上"谁说的"，方便外面打印
+            yield delta                       # 把这一片原样吐给外面（让 UI 立刻显示）
+            delta.pop("role", None)           # 拼接前把 role/sender 摘掉
+            delta.pop("sender", None)         # （它们不是要累加的内容，只是标记）
+            merge_chunk(message, delta)       # 把这一片累加进完整 message
+        yield {"delim": "end"}                # 向外发一个"这段回复结束"的信号</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">yield {"delim": "start"}
+...
+yield {"delim": "end"}</div>
+            <div class="lr-note"><b>delim</b> 是 delimiter（分隔符）的缩写。这两句不带任何内容，纯粹是给外面的界面打<b>标记</b>："一段回复要开始了 / 刚结束了"。UI 收到 start 就可以另起一行、收到 end 就知道该换行——第09章的打印函数正是靠它。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">for chunk in completion:</div>
+            <div class="lr-note">遍历碎片流。因为 completion 是流式的，这个 for 循环会<b>随着碎片陆续到达而一次次转动</b>，而不是一瞬间跑完。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">delta = json.loads(chunk.choices[0].delta.json())</div>
+            <div class="lr-note">从 OpenAI 返回的对象里，把这一片的增量掏出来、转成普通 Python 字典。<b>为什么转 dict：</b>后面 merge_chunk 是按字典操作的，也方便直接 yield 给外面用。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">yield delta</div>
+            <div class="lr-note"><b>先吐再拼。</b>注意顺序：碎片先原样 yield 给外面（UI 立刻把这个字显示出来，打字机效果就来自这里），<b>然后</b>才 merge 进内部 message。这样用户感知到的是实时的。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">delta.pop("role", None)
+delta.pop("sender", None)</div>
+            <div class="lr-note">拼接前把 role、sender 两个"标记字段"摘掉。<b>为什么：</b>它们只是元信息，不是要累加的正文；如果留着，merge 时会把 "assistant" 一遍遍拼成 "assistantassistant..."。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">merge_chunk(message, delta)</div>
+            <div class="lr-note">核心动作：把这一片累加进完整 message。具体怎么加，下一节拆 <b>merge_chunk</b>。</div>
+          </div>
+        </div>
+
+        <p>碎片全部收完、拼接成完整 <code>message</code> 后，剩下的逻辑就和普通 <code>run</code>（第07章）<strong>几乎一模一样</strong>了：整理工具调用、判断要不要结束、执行工具、可能切换 Agent。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/core.py · 收尾与工具处理</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        # 把 tool_calls 从 defaultdict 转成普通列表（按序号取出所有值）
+        message["tool_calls"] = list(
+            message.get("tool_calls", {}).values())
+        if not message["tool_calls"]:
+            message["tool_calls"] = None      # 一个工具都没调，就置空
+        debug_print(debug, "Received completion:", message)
+        history.append(message)               # 完整消息进历史
+
+        if not message["tool_calls"] or not execute_tools:
+            debug_print(debug, "Ending turn.")
+            break                             # 没有要调的工具 → 回合结束，跳出循环
+
+        # 把拼好的 tool_calls 字典还原成 SDK 对象，好交给执行器
+        tool_calls = []
+        for tool_call in message["tool_calls"]:
+            function = Function(
+                arguments=tool_call["function"]["arguments"],
+                name=tool_call["function"]["name"],
+            )
+            tool_call_object = ChatCompletionMessageToolCall(
+                id=tool_call["id"], function=function, type=tool_call["type"]
+            )
+            tool_calls.append(tool_call_object)
+
+        # 执行工具，可能更新 context_variables、可能触发交接
+        partial_response = self.handle_tool_calls(
+            tool_calls, active_agent.functions, context_variables, debug
+        )
+        history.extend(partial_response.messages)
+        context_variables.update(partial_response.context_variables)
+        if partial_response.agent:
+            active_agent = partial_response.agent   # 交接：换人干活
+
+    yield {
+        "response": Response(                 # 循环结束后，最后 yield 出完整结果
+            messages=history[init_len:],      # 只返回本次新增的消息
+            agent=active_agent,
+            context_variables=context_variables,
+        )
+    }</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">message["tool_calls"] = list(
+    message.get("tool_calls", {}).values())</div>
+            <div class="lr-note">把前面用 defaultdict 装着的工具调用，按 <b>.values()</b> 全取出来变成普通列表。到这一步碎片已经拼完整了，defaultdict 的历史使命结束，转回普通结构供后续使用。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">if not message["tool_calls"]:
+    break</div>
+            <div class="lr-note">这就是<b>循环的出口</b>：LLM 这一轮没有点任何工具，说明它给出的是最终答案，回合结束。（和第07章 run 的终止条件是同一个道理。）</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">tool_calls = [] ... Function(...) ...</div>
+            <div class="lr-note">流式拼出来的工具调用是<b>纯字典</b>，而执行器 handle_tool_calls 想要的是 SDK 的对象类型。这一段就是把字典"包装"回对象——这是普通 run 不需要做的额外一步（run 拿到的本来就是对象）。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">yield { "response": Response(...) }</div>
+            <div class="lr-note"><b>压轴的一 yield。</b>整个循环结束后，把最终完整的 Response（含全部新消息、当前 Agent、上下文）打包成 <code>{"response": ...}</code> 吐出去。外面正是靠"看到带 response 键的那一片"来判断流结束、拿到最终结果。</div>
+          </div>
+        </div>
+
+        <h2>四、merge_chunk / merge_fields：碎片是怎么"接"起来的</h2>
+        <p>真正干"拼接"活的，是 <code>util.py</code> 里这两个小函数。先看 <code>merge_fields</code>——一个会自己钻进去的<strong>递归</strong>合并器。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/util.py · merge_fields</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def merge_fields(target, source):
+    for key, value in source.items():          # 遍历新碎片里的每个字段
+        if isinstance(value, str):             # 如果值是字符串
+            target[key] += value               # → 直接"拼接"到已有内容后面
+        elif value is not None and isinstance(value, dict):  # 如果值是字典
+            merge_fields(target[key], value)   # → 递归钻进去继续合并</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">if isinstance(value, str):
+    target[key] += value</div>
+            <div class="lr-note"><b>字符串就拼接。</b>这是打字机效果的本质：content 字段每来一片就 <code>+=</code> 一次，<code>"" → "你" → "你好" → "你好呀"</code>……越接越长。工具调用的 arguments 参数也是字符串，同理一段段拼成完整 JSON。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">elif ... isinstance(value, dict):
+    merge_fields(target[key], value)</div>
+            <div class="lr-note"><b>字典就递归。</b>比如 tool_calls 里嵌着一层 <code>function: {arguments, name}</code>，遇到这种嵌套字典就再调一次自己，钻进去把里层的字符串也拼好。<b>为什么用递归：</b>结构可能有多层，递归能自动适配任意深度，代码却极短。</div>
+          </div>
+        </div>
+
+        <p>再看 <code>merge_chunk</code>——它在 <code>merge_fields</code> 的基础上，专门处理 <code>tool_calls</code> 这个"需要按序号归位"的特殊字段。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/util.py · merge_chunk</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def merge_chunk(final_response: dict, delta: dict) -&gt; None:
+    delta.pop("role", None)                    # 再保险地摘掉 role，不参与拼接
+    merge_fields(final_response, delta)        # 先把普通字段（如 content）合并进去
+
+    tool_calls = delta.get("tool_calls")       # 看这一片里有没有工具调用
+    if tool_calls and len(tool_calls) &gt; 0:
+        index = tool_calls[0].pop("index")     # 取出"这是第几个工具"的序号
+        merge_fields(
+            final_response["tool_calls"][index],  # 定位到对应槽位
+            tool_calls[0]                         # 把这片的工具参数拼进去
+        )</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">merge_fields(final_response, delta)</div>
+            <div class="lr-note">先用上面那个通用合并器，把 content 之类的普通字段拼好。工具调用比较特殊，所以下面单独处理。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">index = tool_calls[0].pop("index")</div>
+            <div class="lr-note"><b>这是"按序号归位"的关键。</b>每个工具调用碎片都自带一个 index，说明它属于第几个工具。<code>pop</code> 把 index 取出来（同时从字典里删掉，因为它不该被拼进最终数据）。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">merge_fields(final_response["tool_calls"][index], tool_calls[0])</div>
+            <div class="lr-note">拿着 index 定位到对应槽位，再把这片碎片拼进去。<b>回扣前面的 defaultdict：</b>正因为 tool_calls 是 defaultdict，即使某个 index 首次出现、还没有槽位，这里也能自动新建——碎片无论怎么乱序到达，都能精准归位到属于自己的那个工具上。</div>
+          </div>
+        </div>
+
+        <h2>五、亲手消费这个碎片流</h2>
+        <p>下面这段小程序不依赖任何辅助函数，手动遍历 <code>run(stream=True)</code> 返回的生成器，让你直观看到"碎片一片片来、最后才拿到完整 Response"。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">stream_demo.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+agent = Agent(name="Agent", instructions="You are a helpful agent.")
+
+messages = [{"role": "user", "content": "用一句话介绍你自己"}]
+
+# stream=True 时，run 返回的是一个"生成器"，要用 for 去遍历它
+stream = client.run(agent=agent, messages=messages, stream=True)
+
+for chunk in stream:
+    # 1) 带 content 的碎片：把新增文字实时打印出来（不换行，营造打字机效果）
+    if "content" in chunk and chunk["content"] is not None:
+        print(chunk["content"], end="", flush=True)
+
+    # 2) 最后一片带 "response" 键：这才是完整结果
+    if "response" in chunk:
+        print()  # 收尾换行
+        final = chunk["response"]
+        print("=== 完整消息条数：", len(final.messages))</code></pre>
+        </div>
+
+        <p><strong>运行方式：</strong>把上面代码存成 <code>stream_demo.py</code>，确保已按第02章配置好 <code>OPENAI_API_KEY</code>，然后在终端执行 <code>python stream_demo.py</code>。</p>
+
+        <div class="output-block">
+          <div class="out-label">预期输出（文字会逐字浮现，非一次性打印）</div>
+          <pre>我是一个乐于助人的智能助手，随时准备回答你的问题～
+=== 完整消息条数： 1</pre>
+        </div>
+
+        <div class="callout tip">
+          <span class="callout-title">看点在哪</span>
+          <p>肉眼上，第一行的文字是<strong>一个字一个字冒出来</strong>的（因为我们收到一片就打印一片）；而 <code>=== 完整消息条数</code> 那行，要等到最后那片带 <code>response</code> 的碎片到达后才出现。这就完整对应了 <code>run_and_stream</code> 的行为：中途 yield 碎片，最后 yield 一个完整 Response。第09章会用官方封装好的 <code>process_and_print_streaming_response</code> 把这套逻辑做得更漂亮。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>stream=True 和 stream=False 返回的东西一样吗？</summary>
+            <div class="faq-body">
+              <p><strong>不一样。</strong><code>stream=False</code>（默认）时，<code>run</code> 直接返回一个 <code>Response</code> 对象，你拿到就能用。<code>stream=True</code> 时，<code>run</code> 转而调用 <code>run_and_stream</code>，返回的是一个<strong>生成器</strong>——你必须用 <code>for</code> 去遍历它，中途每一片是"碎片"（delta 或 delim 标记），只有<strong>最后一片</strong>带 <code>"response"</code> 键里才是真正的完整 <code>Response</code>。所以流式模式下想拿最终结果，得等遍历到那一片才行。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么 tool_calls 要用 index 来拼？直接顺着接不行吗？</summary>
+            <div class="faq-body">
+              <p>因为一次回复里 LLM 可能<strong>同时调用多个工具</strong>，而每个工具的参数又被切成<strong>多个碎片</strong>陆续到来，且不保证顺序——可能先来 1 号工具的一片，再来 0 号工具的一片，又回到 1 号。如果只是"顺着接"，几个工具的参数就会串在一起、变成乱码。每个碎片自带的 <code>index</code> 就是它的"座位号"，配合 <code>defaultdict</code> 提供的自动开槽，无论碎片怎么乱序到达，都能被拼回属于自己的那个工具上。</p>
+            </div>
+          </details>
+          <details>
+            <summary>merge_fields 用 += 拼接，那第一次拼的时候 target 里是什么？</summary>
+            <div class="faq-body">
+              <p>是<strong>空字符串 <code>""</code></strong>。回看 <code>run_and_stream</code> 的消息模板：<code>content</code> 初始就是 <code>""</code>，tool_calls 的 <code>arguments</code>、<code>name</code> 也都初始为 <code>""</code>。所以第一片碎片 <code>"" += "你"</code> 得到 <code>"你"</code>，之后不断往后接。正因为模板事先把这些字段都填了空串，<code>+=</code> 才不会因为"键不存在"而报错。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><strong>流式</strong>让文字一个字往外蹦，体验更好；它要求 LLM 把回复切成一堆小<strong>碎片（chunk / delta）</strong>实时吐出。</li>
+            <li><code>run_and_stream</code> 是个<strong>生成器</strong>：用 <code>yield</code> 中途吐碎片、用 <code>delim</code> 标记回复起止，最后 <code>yield</code> 一个完整 <code>Response</code>。</li>
+            <li>消息模板里 <code>tool_calls</code> 用 <strong>defaultdict</strong>，让乱序到达的工具碎片能按 <code>index</code> 自动归位。</li>
+            <li><code>merge_fields</code> 负责合并：<strong>字符串就拼接、字典就递归</strong>；<code>merge_chunk</code> 在其上专门处理 tool_calls 的按序号归位。</li>
+          </ul>
+          <p style="margin-bottom:0;">碎片能拼成完整回复了。下一章，我们把它接进一个"能一直聊下去"的交互式循环。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-07.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">07 · 引擎核心：run 主循环</span>
+          </a>
+          <a class="next" href="chapter-09.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">09 · 交互式循环</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

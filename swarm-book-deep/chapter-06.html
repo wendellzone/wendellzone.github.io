@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>与生产框架的对比 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第六章 · Chapter 06</div>
+          <div class="ch-bignum">06</div>
+          <h1>与生产框架的对比与定位</h1>
+          <p class="lede">前五章我们把 Swarm 的每一处设计都拆开看了。现在退后一步，把它放进整个 Agent 框架的坐标系：Swarm 到底是个什么定位的项目？它缺了什么、又胜在哪里？相比 OpenAI Agents SDK、LangGraph 这些"更完备"的选择，什么时候该用它、什么时候该换掉它？</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>认清 Swarm 的官方定位：<strong>教育性/实验性、非生产就绪</strong>，其后继是 OpenAI Agents SDK。</li>
+          <li>用一张对比表看清 Swarm、OpenAI Agents SDK、LangGraph 在关键维度上的差异。</li>
+          <li>列清 Swarm 的<strong>局限</strong>（无持久化/重试/追踪/护栏）与<strong>价值</strong>（透明、极简、适合学原理）。</li>
+          <li>为后续章节乃至真实项目"选型/迁移"建立判断框架。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版让你会用 Swarm，深度版前五章让你懂了它<em>为什么这么设计</em>：无状态（第01章）、深拷贝边界（第02章）、约定式注入（第03章）、返回 Agent 即交接（第04章）、主循环护栏（第05章）。你现在对 Swarm 的"骨架"了如指掌。这一章不再读源码，而是把这份理解<strong>横向铺开</strong>——因为选型永远是相对的：只有知道别的框架多做了什么、Swarm 少做了什么，你才能判断某个场景该用谁。</p>
+
+        <h2>一、先把定位说清楚：Swarm 不是拿来跑生产的</h2>
+        <p>这一点必须开门见山：<strong>Swarm 是 OpenAI 官方明确标注的教育性、实验性（educational / experimental）项目，并非生产就绪（not production-ready）。</strong>官方在仓库里写得很直白——它的目的是<strong>示范多 Agent 编排的思路</strong>，而不是让你直接拿去扛线上流量。OpenAI 后来推出的 <strong>OpenAI Agents SDK</strong> 才是它的"生产级后继"：把 Swarm 里那些教学化的极简概念，重新实现成一套可用于生产的正式框架。</p>
+        <div class="callout warn">
+          <span class="callout-title">重要：别把 Swarm 直接搬上生产</span>
+          <p>本书带你把 Swarm 拆到骨头，是为了让你<strong>透彻理解 Agent 编排的原理</strong>——这份理解可以迁移到任何框架。但如果你要做真正对外的产品，请优先考虑 OpenAI Agents SDK 或其他生产级框架。把 Swarm 当"教学显微镜"，而不是"生产引擎"。</p>
+        </div>
+
+        <h2>二、放进坐标系：三个框架的对比</h2>
+        <p>下面这张表基于本书<strong>已经讲透的事实</strong>来描述 Swarm；对 SDK 和 LangGraph 只写广为人知的核心特性，不深挖细节（真要选型请以各自官方文档为准）。</p>
+
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>Swarm</th>
+              <th>OpenAI Agents SDK</th>
+              <th>LangGraph</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>状态管理</td>
+              <td class="cell-swarm">无状态，状态全外置（<code>messages</code>/<code>context_variables</code>），调用者维护</td>
+              <td>无状态内核，另提供 sessions 等机制帮你管理会话历史</td>
+              <td>显式建模的 State + checkpointer 持久化，可存可恢复</td>
+            </tr>
+            <tr>
+              <td>交接方式</td>
+              <td class="cell-swarm">工具 <code>return</code> 一个 Agent 即交接，无专门 API</td>
+              <td>把 handoff 建模为一种特殊 tool，在 Agent 上声明 <code>handoffs</code></td>
+              <td>图的边（edges）显式连接节点，按图游走</td>
+            </tr>
+            <tr>
+              <td>工具定义</td>
+              <td class="cell-swarm">普通 Python 函数即工具，靠内省生成 schema</td>
+              <td>用装饰器把函数标注为 tool，schema 更完整</td>
+              <td>工具/节点为图中的可调用单元</td>
+            </tr>
+            <tr>
+              <td>流式</td>
+              <td class="cell-swarm">有，<code>run_and_stream</code> 逐块 yield</td>
+              <td>有，流式事件更丰富</td>
+              <td>有，支持流式与中间状态订阅</td>
+            </tr>
+            <tr>
+              <td>评测 / 追踪</td>
+              <td class="cell-swarm">无内置追踪；靠无状态 + <code>execute_tools=False</code> 可自建评测</td>
+              <td>内置 tracing，且带 guardrails 等</td>
+              <td>可搭配 LangSmith 等做追踪与评测</td>
+            </tr>
+            <tr>
+              <td>生产就绪度</td>
+              <td class="cell-swarm">否，官方标注教育/实验性</td>
+              <td>是，面向生产设计</td>
+              <td>是，广泛用于生产编排</td>
+            </tr>
+            <tr>
+              <td>定位</td>
+              <td class="cell-swarm">教学显微镜：极简、透明、学原理</td>
+              <td>OpenAI 生态的生产级 Agent 框架</td>
+              <td>通用的图式 Agent / 工作流编排引擎</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>读这张表的正确姿势不是"哪个更好"，而是<strong>"它们把同一批问题（状态、交接、工具、追踪）分别放在了天平的什么位置"</strong>。Swarm 把每一格都压到最简，代价是把"持久化、追踪、护栏"这些格子留空了；SDK 和 LangGraph 把这些格子填满，代价是更多概念和更重的体量。</p>
+
+        <h2>三、Swarm 缺了什么</h2>
+        <p>把前五章的观察汇总一下，Swarm 作为教学框架"故意不做"或"没做"的部分很清晰：</p>
+        <ul>
+          <li><strong>无内置持久化</strong>：历史和上下文是普通变量，存不存、存哪里、怎么恢复，全靠你自己（第01/02章）。没有 checkpointer 这类"随时快照、崩溃可续"的机制。</li>
+          <li><strong>无重试 / 无限流 / 无超时策略</strong>：<code>get_chat_completion</code> 就是一次直白的 API 调用（第05章），网络抖动、限流、超时都没有内置退避重试。</li>
+          <li><strong>无追踪（tracing）</strong>：只有 <code>debug_print</code> 往控制台打日志，没有结构化的 trace/span，难以在生产里做可观测性。</li>
+          <li><strong>无护栏（guardrails）</strong>：不校验输入输出、不做内容安全过滤，一切交给你在工具和 prompt 里自理。</li>
+          <li><strong>错误处理简单</strong>：工具缺失只是写条错误消息继续（第05章），工具内部抛异常则会直接冒出来——没有分级的错误恢复体系。</li>
+          <li><strong>并发要自己造</strong>：工具串行执行（第05章），想真正并行得自己改造（第11章）。</li>
+        </ul>
+
+        <h2>四、那它到底值在哪</h2>
+        <p>这些"缺失"恰恰成就了它的价值——因为<strong>什么都没多做，所以什么都看得见</strong>：</p>
+        <ul>
+          <li><strong>透明</strong>：核心才几百行，你（在本书里）能逐行读完，没有黑盒。每一个行为都能追到具体代码。</li>
+          <li><strong>极简</strong>：无状态、约定式、返回 Agent 即交接——用最少的概念表达了多 Agent 编排的本质。</li>
+          <li><strong>适合学原理</strong>：正因为没有 tracing/guardrails/persistence 这些"生产脚手架"挡在中间，Agent 循环的骨架反而一览无余。学会了 Swarm，再看任何生产框架都是"在这个骨架上加东西"。</li>
+        </ul>
+        <div class="callout tip">
+          <span class="callout-title">一句话定位</span>
+          <p>Swarm 之于 Agent 框架，就像<strong>教学用的透明发动机模型</strong>之于真正的汽车引擎——你不会开着模型上高速，但拆过这台模型的人，比只会加油门的人更懂引擎为什么这样运转。</p>
+        </div>
+
+        <figure class="figure">
+          <svg width="760" height="380" viewBox="0 0 760 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agent 框架定位象限图">
+            <!-- 坐标轴 -->
+            <line x1="90" y1="330" x2="700" y2="330" stroke="#335566" stroke-width="1.5"/>
+            <line x1="120" y1="50" x2="120" y2="345" stroke="#335566" stroke-width="1.5"/>
+            <!-- 轴标签 -->
+            <text x="700" y="352" text-anchor="end" font-family="sans-serif" font-size="12" fill="#335566">完备 →</text>
+            <text x="130" y="348" text-anchor="start" font-family="sans-serif" font-size="12" fill="#335566">← 极简</text>
+            <text x="108" y="58" text-anchor="end" font-family="sans-serif" font-size="12" fill="#335566">生产 ↑</text>
+            <text x="108" y="325" text-anchor="end" font-family="sans-serif" font-size="12" fill="#335566">教育 ↓</text>
+            <text x="395" y="372" text-anchor="middle" font-family="serif" font-size="12.5" fill="#1F1B16">横轴：概念/功能的完备程度</text>
+
+            <!-- Swarm：极简 + 教育（左下） -->
+            <circle cx="215" cy="285" r="40" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="215" y="282" text-anchor="middle" font-family="serif" font-size="14" fill="#fff">Swarm</text>
+            <text x="215" y="300" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#fff">极简 · 教育</text>
+
+            <!-- OpenAI Agents SDK：完备 + 生产（右上） -->
+            <circle cx="560" cy="130" r="44" fill="#335566" stroke="#22404d" stroke-width="2"/>
+            <text x="560" y="122" text-anchor="middle" font-family="serif" font-size="12.5" fill="#fff">OpenAI</text>
+            <text x="560" y="138" text-anchor="middle" font-family="serif" font-size="12.5" fill="#fff">Agents SDK</text>
+            <text x="560" y="155" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#cfe0e6">完备 · 生产</text>
+
+            <!-- LangGraph：完备 + 生产（右上稍偏） -->
+            <circle cx="620" cy="240" r="42" fill="#8A4E12" stroke="#5a3a10" stroke-width="2"/>
+            <text x="620" y="238" text-anchor="middle" font-family="serif" font-size="13" fill="#fff">LangGraph</text>
+            <text x="620" y="256" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#f0e2cf">图式 · 生产</text>
+
+            <!-- 演进虚线箭头 Swarm → SDK -->
+            <defs><marker id="q1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker></defs>
+            <path d="M252 258 C 360 210, 450 165, 512 140" stroke="#B96A1B" stroke-width="1.8" fill="none" stroke-dasharray="6 5" marker-end="url(#q1)"/>
+            <text x="360" y="300" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#B96A1B">教学原型 → 生产后继</text>
+          </svg>
+          <figcaption>图 6-1：Agent 框架定位象限——横轴"极简↔完备"、纵轴"教育↔生产"。Swarm 独占左下角（极简/教育），其理念沿虚线演进为右上的 OpenAI Agents SDK；LangGraph 以"图式编排"占据完备/生产一侧。</figcaption>
+        </figure>
+
+        <details class="deepbox">
+          <summary>延伸：如果要从 Swarm 迁移到 OpenAI Agents SDK</summary>
+          <div class="deepbox-body">
+            <p>好消息是：本书教你的很多东西<strong>是相通的</strong>，迁移时心智负担比想象中小。</p>
+            <p><strong>相通的部分</strong>：① <strong>无状态内核</strong>——SDK 同样把会话历史交给调用方在轮次间传递，你第01章学的"状态外置、赋回历史"直接适用。② <strong>handoff as tool</strong>——SDK 也把交接当成一种特殊工具（第04章的洞察在这里完全成立），你只是从"return 一个 Agent"改成"在 Agent 上声明 <code>handoffs</code>"。③ <strong>messages 外置</strong>——上下文/历史仍是可序列化的外部数据，第02章那套"干净数据、按增量交回"的直觉照样管用。</p>
+            <p><strong>要补上的部分</strong>：① <strong>tracing</strong>——SDK 内置追踪，你不用再靠 <code>debug_print</code> 肉眼看日志。② <strong>guardrails</strong>——输入输出校验成了框架能力，而非你在工具里手写。③ <strong>sessions</strong>——会话管理有了更正式的抽象，不必自己攒 <code>messages</code> 拼接逻辑。换句话说，迁移的本质是"把 Swarm 里留空的那几格（追踪/护栏/会话）交给框架去填"，而编排的骨架你早已烂熟于心。</p>
+          </div>
+        </details>
+
+        <h2>可回顾片段：同一个需求，Swarm 的极简实现</h2>
+        <p>作为第一部分的收尾，用一段最小代码回味 Swarm 的极简——一个能交接的双 Agent，全部逻辑不过十几行（真跑需要 API Key）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>minimal_recap.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+sales = Agent(name="Sales", instructions="你是销售，热情介绍产品。")
+triage = Agent(name="Triage", instructions="判断用户意图，销售问题就转给销售。")
+
+def transfer_to_sales():
+    """用户想买东西时转给销售"""
+    return sales                      # 第04章：返回 Agent 即交接
+
+triage.functions.append(transfer_to_sales)
+
+# 无状态：状态全在 messages 里，调用者维护（第01章）
+resp = client.run(agent=triage,
+                  messages=[{"role": "user", "content": "我想买你们的套餐"}],
+                  max_turns=10)        # 第05章：显式护栏，别用默认无穷
+print(resp.agent.name, "：", resp.messages[-1]["content"])</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（措辞每次不同）</div>
+          <pre>Sales ： 您好！很高兴为您介绍我们的套餐……</pre>
+        </div>
+        <p>十几行里，你能一眼认出这一部分讲过的全部骨架：无状态的 <code>client</code>、外置的 <code>messages</code>、返回 Agent 的交接、显式的 <code>max_turns</code> 护栏。<strong>这就是 Swarm 的魅力——它把复杂的多 Agent 编排，压缩成了你现在一看就懂的几行。</strong></p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>既然不生产就绪，学 Swarm 是不是"学了个过时的东西"？</summary>
+            <div class="faq-body">
+              <p>恰恰相反。框架会迭代，但"无状态、状态外置、交接、工具循环、主循环护栏"这些<strong>原理是稳定的、可迁移的</strong>。Swarm 用最少的代码把这些原理呈现出来，学它等于打地基。学完再上 OpenAI Agents SDK 或 LangGraph，你会发现那些"新概念"大多是在这个地基上加的脚手架——理解得更快、也更知道每个功能在解决什么问题。</p>
+            </div>
+          </details>
+          <details>
+            <summary>那本书后面还讲 Swarm 干嘛？直接学 SDK 不好吗？</summary>
+            <div class="faq-body">
+              <p>因为本书的目标是<strong>让你懂原理，而不是背某个框架的 API</strong>。后面第二部分（07–10 章）会用 Swarm 做分诊编排、接数据库、RAG、评测——都是在这个"透明发动机"上做实验，好处是每一步的因果都清清楚楚，没有黑盒干扰。第三部分（11–12 章）甚至带你亲手改造 Swarm、写一个 mini 版，并给出通往生产的路线图。学会了看透原理，换任何框架都只是换语法。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>Swarm 是 OpenAI 官方标注的<strong>教育性/实验性、非生产就绪</strong>项目，生产级后继是 <strong>OpenAI Agents SDK</strong>。</li>
+            <li>对比表显示：Swarm 把状态、交接、工具、追踪每一格都压到最简；SDK/LangGraph 则以更多概念换来持久化、tracing、guardrails 等生产能力。</li>
+            <li>Swarm 的<strong>局限</strong>是无持久化/重试/追踪/护栏、错误处理简单；<strong>价值</strong>是透明、极简、最适合学原理。</li>
+            <li>迁移到 SDK 时，无状态、handoff as tool、messages 外置都是相通的；要补的是 tracing、guardrails、sessions。</li>
+          </ul>
+          <p style="margin-bottom:0;">第一部分"设计哲学与权衡"到此收束——你已经把 Swarm 的骨架、边界与定位尽收眼底。接下来第二部分，我们把这台透明发动机<strong>真正跑起来</strong>：第 07 章从"分诊编排实战"开始，把前面所有原理拧成一个能干活的多 Agent 系统。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-05.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">05 · 主循环的边界与健壮性</span>
+          </a>
+          <a class="next" href="chapter-07.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">07 · 分诊编排实战</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

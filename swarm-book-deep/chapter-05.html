@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>主循环的边界与健壮性 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第五章 · Chapter 05</div>
+          <div class="ch-bignum">05</div>
+          <h1>主循环的边界与健壮性</h1>
+          <p class="lede">前四章我们看了状态、边界、注入、交接。现在把镜头拉回 <code>run()</code> 的那个 <code>while</code> 循环本身——它凭什么不会永远转下去？工具名写错会不会让整个程序崩掉？"并行工具调用"到底并不并行？这一章专讲主循环里那些不起眼、却决定健壮性的<strong>护栏细节</strong>。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>看懂 <code>while</code> 条件里的两道护栏：<code>max_turns</code> 防死循环、<code>active_agent</code> 为 None 时停。</li>
+          <li>理解工具缺失时的<strong>容错</strong>：不崩溃，而是追加错误消息继续。</li>
+          <li>澄清一个高频误解：<code>parallel_tool_calls</code> <strong>不等于</strong>框架并行执行工具。</li>
+          <li>明白 <code>model_dump_json</code> 洗数据、以及 <code>execute_tools=False</code> "只取意图不执行"的用意。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版把 <code>run()</code> 主循环讲成"调模型 → 有工具就执行 → 再调模型 …… 直到没有工具调用为止"。这个骨架没错，但它回避了所有"万一"：万一 LLM 陷入"调工具→调工具→……"停不下来？万一它点了一个根本不存在的工具？万一你只想看看它<strong>打算</strong>调什么、却不真的执行？这一章就是把这些"万一"对应的防御代码，从主循环里一条条挖出来。</p>
+
+        <h2>一、护栏一：while 条件里的两把锁</h2>
+        <p>看 <code>run()</code> 主循环的入口条件（<code>core.py</code> 第 257 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · while 条件</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        while len(history) - init_len < max_turns and active_agent:</code></pre>
+        </div>
+        <p>一行里藏了两道护栏：</p>
+        <ul>
+          <li><strong><code>len(history) - init_len &lt; max_turns</code></strong>：还记得第 02 章的 <code>init_len</code>（起跑线）吗？<code>len(history) - init_len</code> 就是"本轮已经新增了多少条消息"，也就是循环已经跑了多少步。一旦达到 <code>max_turns</code>，循环停止。这是<strong>防死循环的护栏</strong>——万一 LLM 陷入"调工具→再调工具→……"永不收尾，<code>max_turns</code> 能强行喊停。</li>
+          <li><strong><code>and active_agent</code></strong>：如果 <code>active_agent</code> 变成了 <code>None</code>，循环也停。这给了一种"主动退场"的可能——工具可以通过返回一个把 agent 置空的 <code>Result</code> 来终止编排（回忆第 04 章：<code>partial_response.agent</code> 决定了下一轮的 <code>active_agent</code>）。</li>
+        </ul>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：max_turns 默认是无穷大</span>
+          <p><code>run()</code> 的签名里 <code>max_turns: int = float("inf")</code>（第 239 行）——<strong>默认没有上限</strong>。这意味着如果你不显式传 <code>max_turns</code>，一旦模型和工具配合出了"你调我、我调你"的死循环，理论上它会一直转下去、烧掉大量 token 和费用。生产里强烈建议<strong>显式设一个合理的 <code>max_turns</code></strong>（比如 10、20），把这道护栏真正用起来，而不是依赖默认的"无穷"。</p>
+        </div>
+
+        <h2>二、护栏二：工具名不存在也不崩</h2>
+        <p>LLM 有时会"幻觉"出一个并不存在的工具名。看 <code>handle_tool_calls</code> 怎么兜底（<code>core.py</code> 第 100–113 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · 工具缺失的容错</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        for tool_call in tool_calls:                 # 第100行：串行遍历每个工具调用
+            name = tool_call.function.name
+            # handle missing tool case, skip to next tool
+            if name not in function_map:             # 第103行：这个工具存在吗？
+                debug_print(debug, f"Tool {name} not found in function map.")
+                partial_response.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "tool_name": name,
+                        "content": f"Error: Tool {name} not found.",   # 第110行：写一条错误消息
+                    }
+                )
+                continue                             # 第113行：跳过，继续下一个</code></pre>
+        </div>
+        <p>关键在<strong>不抛异常、不中断</strong>：工具名不在 <code>function_map</code> 里时，Swarm 追加一条 <code>role=tool</code> 的错误消息（<code>content</code> 是 <code>"Error: Tool X not found."</code>），然后 <code>continue</code> 跳到下一个工具调用。这条错误消息会随历史回到 LLM 眼前——<strong>模型看到"刚才那个工具不存在"，往往能在下一轮自我纠正</strong>，换个正确的工具或直接回答。整个程序不会因为一次幻觉就崩掉。</p>
+
+        <h2>三、澄清：parallel_tool_calls 不等于并行执行</h2>
+        <p>这是全书最容易被误解的一处。先看两个事实。事实一，工具是在一个<strong>普通的 <code>for</code> 循环</strong>里一个接一个执行的（<code>core.py</code> 第 100 行那个 <code>for tool_call in tool_calls</code>）——纯串行，没有任何线程/协程并发。事实二，<code>Agent</code> 有个字段 <code>parallel_tool_calls</code> 默认为 <code>True</code>（<code>types.py</code> 第 20 行），它被传给 OpenAI（<code>core.py</code> 第 66–67 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · parallel_tool_calls 传给 OpenAI</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        if tools:
+            create_params["parallel_tool_calls"] = agent.parallel_tool_calls</code></pre>
+        </div>
+        <p>把两个事实拼起来，真相就清楚了：<strong><code>parallel_tool_calls</code> 只是允许 LLM 在一次回复里<em>一口气点多个工具</em>（一次"下多张单"），它决定的是"模型能不能一轮返回多个 tool_calls"，而不是"框架并行执行这些工具"。</strong>拿到这些 tool_calls 后，Swarm 依旧是老老实实地用 <code>for</code> 循环<strong>串行</strong>跑完的。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：一次点多道菜 vs 后厨同时开火</span>
+          <p><code>parallel_tool_calls=True</code> 好比允许你在餐厅<strong>一次性点三道菜</strong>（而不是吃完一道再点下一道）。但后厨（Swarm 的 <code>for</code> 循环）是<strong>一个厨师</strong>按顺序一道一道做的——点单可以并行，出菜依然串行。想让后厨真正"同时开三个灶"，得自己改造框架（用 <code>asyncio</code>/线程池并发执行工具），那是第 11 章"动手改造"的话题。</p>
+        </div>
+
+        <figure class="figure">
+          <svg width="760" height="400" viewBox="0 0 760 400" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="主循环健壮性护栏图">
+            <defs>
+              <marker id="m1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="m2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#c25b4e"/></marker>
+            </defs>
+
+            <!-- while 护栏框 -->
+            <rect x="40" y="40" width="290" height="70" rx="12" fill="#33556612" stroke="#335566" stroke-width="1.5"/>
+            <text x="185" y="66" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">护栏① while 入口条件</text>
+            <text x="185" y="88" text-anchor="middle" font-family="monospace" font-size="10" fill="#335566">turns &lt; max_turns  and  active_agent</text>
+            <text x="185" y="102" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#8A7F72">防死循环 · agent 为空则停</text>
+
+            <path d="M185 112 L185 142" stroke="#B96A1B" stroke-width="2" marker-end="url(#m1)"/>
+
+            <!-- 调模型 -->
+            <rect x="55" y="146" width="260" height="42" rx="10" fill="#E0913A15" stroke="#B96A1B"/>
+            <text x="185" y="172" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#1F1B16">调 LLM，得到 message</text>
+
+            <path d="M185 190 L185 218" stroke="#B96A1B" stroke-width="2" marker-end="url(#m1)"/>
+
+            <!-- 洗数据 -->
+            <rect x="55" y="222" width="260" height="42" rx="10" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="185" y="242" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#1F1B16">护栏④ 洗成普通 dict</text>
+            <text x="185" y="257" text-anchor="middle" font-family="monospace" font-size="9.5" fill="#8A4E12">json.loads(message.model_dump_json())</text>
+
+            <path d="M185 266 L185 294" stroke="#B96A1B" stroke-width="2" marker-end="url(#m1)"/>
+
+            <!-- 判断 tool_calls -->
+            <path d="M185 298 L245 328 L185 358 L125 328 Z" fill="#fff" stroke="#335566" stroke-width="1.5"/>
+            <text x="185" y="326" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#1F1B16">有 tool_calls</text>
+            <text x="185" y="340" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#1F1B16">且要执行?</text>
+
+            <!-- 否 → break -->
+            <path d="M125 328 L60 328" stroke="#c25b4e" stroke-width="2" marker-end="url(#m2)"/>
+            <text x="70" y="316" text-anchor="start" font-family="sans-serif" font-size="10.5" fill="#c25b4e">否 → break</text>
+            <text x="55" y="376" text-anchor="start" font-family="sans-serif" font-size="9.5" fill="#8A7F72">护栏⑤ execute_tools=False 提前 break</text>
+
+            <!-- 右侧：工具串行执行 -->
+            <rect x="420" y="140" width="310" height="230" rx="12" fill="#E0913A10" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="575" y="166" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">护栏③ for 串行执行 tool_calls</text>
+            <text x="575" y="184" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#8A7F72">（parallel_tool_calls 只让模型一次多点几个）</text>
+
+            <rect x="445" y="198" width="260" height="34" rx="8" fill="#fff" stroke="#B96A1B"/>
+            <text x="575" y="220" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#8A4E12">tool_1  →  执行</text>
+            <rect x="445" y="238" width="260" height="42" rx="8" fill="#c25b4e12" stroke="#c25b4e"/>
+            <text x="575" y="258" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#c25b4e">tool_2  →  不存在?</text>
+            <text x="575" y="273" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#c25b4e">护栏② 追加"Error: not found" 后 continue</text>
+            <rect x="445" y="286" width="260" height="34" rx="8" fill="#fff" stroke="#B96A1B"/>
+            <text x="575" y="308" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#8A4E12">tool_3  →  执行</text>
+            <text x="575" y="344" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#74B36B">一个接一个，绝不并行 ✓</text>
+
+            <!-- 是 → 去执行 -->
+            <path d="M245 328 L418 300" stroke="#B96A1B" stroke-width="2" marker-end="url(#m1)"/>
+            <text x="330" y="308" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#B96A1B">是 →</text>
+
+            <!-- 回到 while（走底部 + 最左侧车道折回 while 框左侧，避开左列各框） -->
+            <path d="M575 372 L575 394 L25 394 L25 75 L38 75" stroke="#335566" stroke-width="1.5" fill="none" stroke-dasharray="5 5" marker-end="url(#m1)"/>
+            <text x="415" y="386" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#335566">执行完回到 while 顶部，再受护栏① 约束</text>
+          </svg>
+          <figcaption>图 5-1：主循环的四道护栏——① <code>while</code> 双条件把关每一圈；② 工具缺失写错误消息并跳过；③ 工具串行执行（并非并行）；④ 洗数据、⑤ <code>execute_tools=False</code> 提前 break。</figcaption>
+        </figure>
+
+        <h2>四、护栏四：把 OpenAI 类型"洗"成普通 dict</h2>
+        <p>模型返回的 <code>message</code> 是 OpenAI SDK 的 pydantic 对象。Swarm 没有直接把它塞进 <code>history</code>，而是先"洗"一遍（<code>core.py</code> 第 271–273 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · 洗成普通 dict</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">            history.append(
+                json.loads(message.model_dump_json())
+            )  # to avoid OpenAI types (?)</code></pre>
+        </div>
+        <p><code>model_dump_json()</code> 把 pydantic 对象序列化成 JSON 字符串，<code>json.loads</code> 再把它解析回一个<strong>纯粹的 Python dict</strong>。为什么要多这一道？因为这样 <code>history</code> 里存的全是普通 dict，而不是 OpenAI 的特定类型——<strong>避免 OpenAI 的类型渗进你的历史</strong>：历史因此可以被 <code>json.dumps</code> 直接序列化（存数据库、写文件、跨进程传都方便），也不会因为 SDK 升级换了对象结构而影响你已存的历史。源码注释末尾那个 <code>(?)</code> 很可爱——它坦承这是个务实的权宜之举，但效果确实是让 <code>history</code> 保持"干净的普通数据"。</p>
+
+        <h2>五、护栏五：execute_tools=False，只看意图不执行</h2>
+        <p>看主循环里决定"是否收尾"的那行（<code>core.py</code> 第 275 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · execute_tools 开关</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">            if not message.tool_calls or not execute_tools:
+                debug_print(debug, "Ending turn.")
+                break</code></pre>
+        </div>
+        <p>两种情况会 <code>break</code> 收尾：<strong>没有工具调用</strong>（模型给出了最终答复），<strong>或者 <code>execute_tools</code> 为 <code>False</code></strong>。后者是个很妙的开关：当 <code>execute_tools=False</code> 时，即便模型点了工具，Swarm 也<strong>不真去执行</strong>，而是直接把"模型打算调用哪些工具"作为结果返回给你。</p>
+        <p>这有什么用？<strong>你能拿到模型的"意图"而不产生任何真实副作用</strong>——不查数据库、不发请求、不转账。这正是评测（第 10 章）要用的能力：给定一个输入，我只想验证"模型是否<em>决定</em>调用正确的工具"，而不希望真的执行它。<code>execute_tools=False</code> 就是为这类"只测决策、不测执行"的场景埋下的伏笔。</p>
+
+        <h2>可运行/可读小实验</h2>
+        <p><strong>实验一：用 <code>max_turns</code> 和 <code>debug</code> 观察循环轮数。</strong>把 <code>max_turns</code> 设成 1，循环最多跑一圈就停；开 <code>debug=True</code> 能看到每一步的日志（真跑需要 API Key）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>loop_guard_demo.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+def get_weather(city: str):
+    """查询天气"""
+    return f"{city} 今天晴，26 度。"
+
+agent = Agent(name="Agent", instructions="你是天气助手，需要时调用工具。",
+              functions=[get_weather])
+
+# max_turns=1：最多跑一圈。debug=True：打印每一步内部日志
+response = client.run(
+    agent=agent,
+    messages=[{"role": "user", "content": "北京天气怎么样？"}],
+    max_turns=1,      # ← 把防死循环护栏收紧到 1 轮
+    debug=True,       # ← 观察循环实际跑了几轮
+)
+print("本轮新增消息数：", len(response.messages))</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期现象</div>
+          <pre>[时间戳] Getting chat completion for...: [...]
+[时间戳] Received completion: [...]      ← 只出现一轮（因为 max_turns=1）
+本轮新增消息数： 1</pre>
+        </div>
+        <p>把 <code>max_turns</code> 去掉（用默认无穷），同样的问题模型通常会跑两轮：第一轮点 <code>get_weather</code>，第二轮拿到天气再组织成自然语言答复。对比两次的 <code>debug</code> 日志，就能直观看到护栏①在起作用。</p>
+        <p><strong>实验二（说明）：故意调用不存在的工具看容错。</strong>如果模型幻觉出一个 <code>function_map</code> 里没有的工具名，你<strong>不会看到程序崩溃</strong>，而会在返回的历史里发现一条 <code>content</code> 为 <code>"Error: Tool xxx not found."</code> 的 <code>role=tool</code> 消息（来自第 110 行）。模型下一轮读到这条错误，通常会改调正确的工具或直接作答——这就是护栏②"容错跳过"的实际效果。</p>
+
+        <h2>六、两组取舍</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">max_turns 有限 vs 无限 · 容错跳过 vs 直接抛错</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">Swarm：有护栏 + 容错跳过</div>
+              <ul>
+                <li><code>max_turns</code> 一旦设定，就有<strong>确定的上界</strong>，绝不会烧钱到失控。</li>
+                <li>工具缺失时<strong>写错误消息继续</strong>，把纠错机会交回给模型，鲁棒性好。</li>
+                <li>单次 <code>run</code> 是<strong>可终结</strong>的——要么达成、要么触顶、要么 agent 置空。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">无限轮 / 直接抛错</div>
+              <ul>
+                <li>无限轮"更自由"，但默认 <code>inf</code> 埋着<strong>失控烧钱</strong>的隐患，必须自己收紧。</li>
+                <li>工具缺失就抛异常，能<strong>更早暴露</strong>问题，但一次幻觉就让整个对话崩掉，对用户不友好。</li>
+                <li>严格性换来了脆弱性——是否合适取决于你更怕"悄悄跑偏"还是"直接挂掉"。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>max_turns 到底是"对话轮数"还是"消息条数"？</summary>
+            <div class="faq-body">
+              <p>看第 257 行，比较的是 <code>len(history) - init_len</code>，也就是<strong>本轮新增的消息条数</strong>，而不是"来回对话的轮数"。一次模型回复算一条、一次工具调用结果也算一条，所以一个"调工具再答复"的完整交互会消耗好几条。设 <code>max_turns</code> 时按"消息条数上界"来理解，别按"人类感知的对话回合"来估。</p>
+            </div>
+          </details>
+          <details>
+            <summary>parallel_tool_calls 设成 False 有什么用？</summary>
+            <div class="faq-body">
+              <p>它会告诉 OpenAI"每次回复最多只点一个工具"。当你希望模型一步一步来、便于观察和调试，或某些工具有先后依赖不宜一次全点时，设 <code>False</code> 更可控。但要记住：无论 True 还是 False，Swarm 这边<strong>永远是串行执行</strong>的——这个开关只影响模型"一次点几个"，不影响框架"怎么跑"。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><code>while</code> 双条件（第 257 行）：<code>max_turns</code> 防死循环、<code>active_agent</code> 为 None 时停；但 <code>max_turns</code> <strong>默认无穷</strong>，生产要显式设值。</li>
+            <li>工具名不存在时<strong>不崩溃</strong>：追加 <code>"Error: Tool X not found."</code> 并 <code>continue</code>（第 103–113 行），把纠错交回模型。</li>
+            <li>工具是 <code>for</code> 循环<strong>串行执行</strong>（第 100 行）；<code>parallel_tool_calls</code>（默认 True）只让模型<strong>一次多点几个</strong>，不代表框架并行。</li>
+            <li><code>model_dump_json</code>（第 271–273 行）把消息洗成普通 dict，避免 OpenAI 类型污染历史；<code>execute_tools=False</code>（第 275 行）只取意图不执行，为第 10 章评测埋下伏笔。</li>
+          </ul>
+          <p style="margin-bottom:0;">到这里，Swarm 的设计哲学与实现细节我们已经逐条拆完。最后一步，把它放进更大的坐标系：Swarm 究竟是个什么定位的项目？和 OpenAI Agents SDK、LangGraph 这些生产框架比，它的边界在哪、价值又在哪？下一章收束第一部分。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-04.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">04 · handoff 的极简哲学</span>
+          </a>
+          <a class="next" href="chapter-06.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">06 · 与生产框架的对比</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

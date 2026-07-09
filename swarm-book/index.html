@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swarm 图文电子书 · 从零入门 Agent 开发</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <div class="cover">
+    <section class="cover-hero">
+      <svg width="96" height="96" viewBox="0 0 96 96" fill="none" style="margin:0 auto;">
+        <path d="M48 6 L82 26 L82 66 L48 86 L14 66 L14 26 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+        <path d="M48 20 L70 33 L70 59 L48 72 L26 59 L26 33 Z" fill="#F2B441" opacity="0.6"/>
+        <text x="48" y="62" text-anchor="middle" font-size="40">🐝</text>
+      </svg>
+      <h1>Swarm 精读</h1>
+      <p class="subtitle">一本图文并茂、面向零基础读者的中文电子书——通过逐行精读 OpenAI Swarm，带你真正入门 AI Agent 开发。</p>
+      <div class="tags">
+        <span class="tag">零基础友好</span>
+        <span class="tag">源码逐行精读</span>
+        <span class="tag">手绘 SVG 图解</span>
+        <span class="tag">可运行代码</span>
+      </div>
+    </section>
+
+    <h2 style="margin-top:52px;">目录</h2>
+    <div class="toc">
+      <a href="chapter-00.html">
+        <span class="toc-num">00</span>
+        <div class="toc-text"><h3>前言与如何阅读</h3><p>这本书为谁而写、怎么读最省力、动手前的准备。</p></div>
+      </a>
+      <a href="chapter-01.html">
+        <span class="toc-num">01</span>
+        <div class="toc-text"><h3>从零理解 Agent</h3><p>把 LLM、function calling、Agent 三个词彻底讲清楚。</p></div>
+      </a>
+      <a href="chapter-02.html">
+        <span class="toc-num">02</span>
+        <div class="toc-text"><h3>跑通第一个 Agent</h3><p>用 5 行代码（bare_minimum）跑通你的第一个 Agent。</p></div>
+      </a>
+      <a href="chapter-03.html">
+        <span class="toc-num">03</span>
+        <div class="toc-text"><h3>数据模型骨架</h3><p>拆开 types.py：Agent、Response、Result 三个核心结构。</p></div>
+      </a>
+      <a href="chapter-04.html">
+        <span class="toc-num">04</span>
+        <div class="toc-text"><h3>让 Agent 会用工具</h3><p>function_calling 与 function_to_json：函数如何变成工具。</p></div>
+      </a>
+      <a href="chapter-05.html">
+        <span class="toc-num">05</span>
+        <div class="toc-text"><h3>上下文变量</h3><p>给 Agent 一个随身档案袋，让它记住"你是谁"。</p></div>
+      </a>
+      <a href="chapter-06.html">
+        <span class="toc-num">06</span>
+        <div class="toc-text"><h3>Agent 交接 handoff</h3><p>像转接电话一样，把对话交给另一个 Agent。</p></div>
+      </a>
+      <a href="chapter-07.html">
+        <span class="toc-num">07</span>
+        <div class="toc-text"><h3>引擎核心：run 主循环</h3><p>core.py 的五步主循环——整本书最核心的一章。</p></div>
+      </a>
+      <a href="chapter-08.html">
+        <span class="toc-num">08</span>
+        <div class="toc-text"><h3>流式输出</h3><p>run_and_stream 与 merge_chunk：让回答一个字一个字蹦出来。</p></div>
+      </a>
+      <a href="chapter-09.html">
+        <span class="toc-num">09</span>
+        <div class="toc-text"><h3>交互式循环</h3><p>simple_loop_no_helpers 与 repl.py：搭一个能连续对话的终端。</p></div>
+      </a>
+      <a href="chapter-10.html">
+        <span class="toc-num">10</span>
+        <div class="toc-text"><h3>全景复盘与延伸</h3><p>把所有拼图拼成一张全景架构图，并指出下一步方向。</p></div>
+      </a>
+    </div>
+
+    <section class="reading-guide">
+      <h2>阅读指南</h2>
+      <p><strong>建议按顺序阅读。</strong>本书采用"自底向上、概念驱动"的方式搭积木，后一章会大量依赖前一章建立的概念。</p>
+      <ul>
+        <li><strong>亲手跑代码</strong>：每章都有可复制、可运行的完整代码片段，点代码块右上角"复制"按钮即可。</li>
+        <li><strong>看图理解</strong>：抽象机制都配了手绘 SVG 图解，卡壳时先看图。</li>
+        <li><strong>用键盘翻章</strong>：在任意章节页面按 <code>←</code> / <code>→</code> 方向键可快速翻到上/下一章。</li>
+        <li><strong>手机也能读</strong>：点左上角按钮可展开章节导航。</li>
+      </ul>
+      <p style="margin-top:18px;"><a href="chapter-00.html" style="font-weight:600;">→ 从「前言」开始阅读</a></p>
+    </section>
+
+    <p style="text-align:center;color:var(--ink-faint);font-size:13px;margin-top:60px;">
+      基于 <a href="https://github.com/openai/swarm" target="_blank" rel="noopener">OpenAI Swarm</a> 源码精读 · 仅供学习交流
+    </p>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

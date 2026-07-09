@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交互式循环 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第九章 · Chapter 09</div>
+          <div class="ch-bignum">09</div>
+          <h1>交互式循环</h1>
+          <p class="lede">前面每章都是"问一次答一次"。真实聊天需要连续多轮。本章用几十行代码，搭一个能在终端一直聊下去的 Agent，并读透官方开箱即用的 <code>run_demo_loop</code>。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解为什么"连续对话"必须<strong>手动维护 messages 和 agent</strong>。</li>
+          <li>逐行读懂最朴素的交互循环 <code>simple_loop_no_helpers.py</code>。</li>
+          <li>读透官方封装 <code>run_demo_loop</code>，以及它的两个打印助手。</li>
+          <li>看懂终端里那些 <code>\033[94m</code> 到底是什么（ANSI 颜色码）。</li>
+        </ul>
+
+        <h2>一、为什么需要一个"循环"</h2>
+        <p>前面所有例子，本质都是"调一次 <code>client.run(...)</code>，拿到答案，程序结束"。可真实的聊天不是这样——你会一句接一句地问，助手要<strong>记得</strong>你们前面聊过什么。这就需要一个不停转的循环：读一句用户输入 → 问 Agent → 打印回答 → 回到开头再读下一句。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：值班的接线员</span>
+          <p>普通 <code>run</code> 像打一通"打完即挂"的电话。交互循环则像一个<strong>一直在线的接线员</strong>：接一个问题、答一个、继续等下一个，全程<strong>记着这通电话之前说了啥</strong>。而"记着说过什么"这件事，Swarm 不替你保存——得靠<strong>你自己</strong>把每轮的对话历史攒起来。这就是本章反复强调的"手动维护"。</p>
+        </div>
+
+        <h2>二、最朴素的循环：simple_loop_no_helpers.py</h2>
+        <p>官方 <code>examples/basic/</code> 里有个极简例子，故意<strong>不用</strong>任何辅助函数（no helpers），好让你看清循环的骨架。全文只有二十几行：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">examples/basic/simple_loop_no_helpers.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+my_agent = Agent(
+    name="Agent",
+    instructions="You are a helpful agent.",
+)
+
+
+def pretty_print_messages(messages):
+    for message in messages:
+        if message["content"] is None:      # 没内容的消息（比如纯工具调用）跳过
+            continue
+        print(f"{message['sender']}: {message['content']}")
+
+
+messages = []                               # ① 对话历史，从空开始
+agent = my_agent                            # ② 当前 Agent，从起始 Agent 开始
+while True:                                 # ③ 无限循环，一直聊
+    user_input = input("&gt; ")                # ④ 读一行用户输入
+    messages.append({"role": "user", "content": user_input})  # ⑤ 追加到历史
+
+    response = client.run(agent=agent, messages=messages)     # ⑥ 交给引擎跑一轮
+    messages = response.messages            # ⑦ 用返回的完整历史更新 messages
+    agent = response.agent                  # ⑧ 若发生交接，下轮用新 Agent
+    pretty_print_messages(messages)         # ⑨ 打印</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">messages = []
+agent = my_agent</div>
+            <div class="lr-note">两个"要一直带在身上"的状态：<b>对话历史</b>和<b>当前 Agent</b>。它们定义在循环<b>外面</b>，所以每一轮循环都能读到上一轮攒下的值——这正是"记忆"的载体。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">while True:</div>
+            <div class="lr-note">一个永远为真的循环，程序会一直转下去（想退出就 Ctrl+C）。这就是"能一直聊"的骨架。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">user_input = input("&gt; ")
+messages.append({"role": "user", ...})</div>
+            <div class="lr-note"><code>input</code> 会停下来<b>等你在终端敲字并回车</b>。拿到这句话后，包成一条 <code>role="user"</code> 的消息，<b>追加</b>到历史末尾——注意是 append，旧消息全都保留。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">response = client.run(agent=agent, messages=messages)</div>
+            <div class="lr-note">把"当前 Agent + 完整历史"交给引擎跑一轮（内部就是第07章那个主循环）。因为传的是完整历史，LLM 才看得到前面聊过的所有内容。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">messages = response.messages</div>
+            <div class="lr-note"><b>本章最关键的一行。</b>用引擎返回的<b>完整历史</b>覆盖掉 messages。这一轮里 Agent 说的话、调用工具产生的消息，全都在 response.messages 里。不这么赋值回去，下一轮 LLM 就<b>看不到</b>自己刚说过什么——等于失忆。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">agent = response.agent</div>
+            <div class="lr-note">同样重要：如果这一轮发生了<b>交接</b>（第06章），<code>response.agent</code> 就是接手的新 Agent。把它赋回去，下一轮就自动由新 Agent 应答——交接才能在多轮之间"延续"。</div>
+          </div>
+        </div>
+
+        <div class="callout warn">
+          <span class="callout-title">Swarm 是无状态的，记忆靠你维护</span>
+          <p>注意：<code>client</code> 自己<strong>不存</strong>任何对话历史。每次 <code>run</code> 都是一次独立、干净的调用。是<strong>你的循环</strong>把 <code>messages</code> 和 <code>agent</code> 攒在手里、一轮轮传进去，才拼出了"连续对话"的错觉。这个"无状态"设计是 Swarm 极简的关键，第10章会专门复盘。</p>
+        </div>
+
+        <h2>三、官方开箱即用版：run_demo_loop</h2>
+        <p>上面那个循环能用，但打印很朴素、也不支持流式。官方在 <code>swarm/repl/repl.py</code> 里封装了一个更好用的版本 <code>run_demo_loop</code>：多了流式支持和彩色美化打印。骨架和 simple_loop 几乎一样，你会发现"手动维护 messages 和 agent"的模式原封不动。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/repl/repl.py · run_demo_loop</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def run_demo_loop(
+    starting_agent, context_variables=None, stream=False, debug=False
+) -&gt; None:
+    client = Swarm()
+    print("Starting Swarm CLI 🐝")
+
+    messages = []                           # 同样：历史从空开始
+    agent = starting_agent
+
+    while True:
+        user_input = input("\033[90mUser\033[0m: ")   # 灰色提示 "User:"
+        messages.append({"role": "user", "content": user_input})
+
+        response = client.run(
+            agent=agent,
+            messages=messages,
+            context_variables=context_variables or {},
+            stream=stream,                  # 是否走第08章的流式
+            debug=debug,
+        )
+
+        if stream:
+            # 流式：把生成器交给流式打印器边收边显示，并拿回完整 Response
+            response = process_and_print_streaming_response(response)
+        else:
+            # 非流式：直接把消息列表漂亮打印
+            pretty_print_messages(response.messages)
+
+        messages.extend(response.messages)  # 把本轮新增消息接到历史后面
+        agent = response.agent              # 交接则更新 Agent</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">if stream:
+    response = process_and_print_streaming_response(response)</div>
+            <div class="lr-note">流式模式下，<code>client.run</code> 返回的是<b>生成器</b>（第08章）。这里把它交给专门的流式打印器：一边遍历碎片一边实时打印，最后<b>把完整的 Response 返回</b>回来赋给 response，让下面的 extend/agent 逻辑照常工作。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">messages.extend(response.messages)</div>
+            <div class="lr-note">和 simple_loop 的 <code>messages = response.messages</code> 效果一致——把本轮新消息并入历史。（这里用 extend 追加，因为流式返回的 messages 只含"本次新增"部分。）道理相同：不并回去就会失忆。</div>
+          </div>
+        </div>
+
+        <h3>3.1 流式打印器 process_and_print_streaming_response</h3>
+        <p>这个函数就是第08章那段"手动消费生成器"的<strong>豪华版</strong>：它按碎片的不同类型分别处理，打印得井井有条。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/repl/repl.py · process_and_print_streaming_response</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def process_and_print_streaming_response(response):
+    content = ""
+    last_sender = ""
+
+    for chunk in response:                  # 遍历碎片流
+        if "sender" in chunk:               # 碎片带 sender → 记住是谁在说
+            last_sender = chunk["sender"]
+
+        if "content" in chunk and chunk["content"] is not None:
+            if not content and last_sender: # 一段话的第一个字：先蓝色打印发言人名
+                print(f"\033[94m{last_sender}:\033[0m", end=" ", flush=True)
+                last_sender = ""
+            print(chunk["content"], end="", flush=True)  # 逐字打印（不换行）
+            content += chunk["content"]
+
+        if "tool_calls" in chunk and chunk["tool_calls"] is not None:
+            for tool_call in chunk["tool_calls"]:
+                f = tool_call["function"]
+                name = f["name"]
+                if not name:                # 名字还没拼全的碎片先跳过
+                    continue
+                print(f"\033[94m{last_sender}: \033[95m{name}\033[0m()")  # 紫色显示工具名
+
+        if "delim" in chunk and chunk["delim"] == "end" and content:
+            print()                         # 收到"结束"标记 → 换行
+            content = ""
+
+        if "response" in chunk:             # 最后一片：拿到完整 Response 并返回
+            return chunk["response"]</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">if "sender" in chunk:
+    last_sender = chunk["sender"]</div>
+            <div class="lr-note">碎片里带 <b>sender</b>（第08章 run_and_stream 补上的）就记下"当前是谁在发言"，好在正文前面打印它的名字。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">if not content and last_sender:
+    print(f"\033[94m{last_sender}:\033[0m", ...)</div>
+            <div class="lr-note">当"本段还没打印过任何字"（content 为空）且知道发言人时，先把发言人名字用<b>蓝色</b>打出来，然后清空 last_sender 避免重复打印。之后的字就紧跟其后逐个输出。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">print(chunk["content"], end="", flush=True)</div>
+            <div class="lr-note">逐字打印的核心：<code>end=""</code> 不换行、<code>flush=True</code> 立刻刷到屏幕（不缓冲）。这两个参数缺一不可，否则就没有"打字机"效果。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">print(f"...\033[95m{name}\033[0m()")</div>
+            <div class="lr-note">遇到工具调用碎片，用<b>紫色</b>打印工具名，如 <code>transfer_to_sales()</code>，让你一眼看出"Agent 正在点单调工具"。name 没拼全就先 continue，等拼全再打。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">if chunk["delim"] == "end" and content:
+    print()</div>
+            <div class="lr-note">收到第08章那个 <b>delim: end</b> 结束标记，就 print() 换行、并清空 content，准备迎接下一段发言。delim 标记在这里派上了用场。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">if "response" in chunk:
+    return chunk["response"]</div>
+            <div class="lr-note">看到带 <b>response</b> 键的最后一片，就把完整 Response 返回出去——run_demo_loop 正是靠这个返回值继续维护 messages 和 agent。</div>
+          </div>
+        </div>
+
+        <h3>3.2 非流式打印器 pretty_print_messages</h3>
+        <p>如果没开流式，用的是这个。它遍历一整个消息列表，把 Agent 的发言和工具调用漂亮地打出来。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/repl/repl.py · pretty_print_messages</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def pretty_print_messages(messages) -&gt; None:
+    for message in messages:
+        if message["role"] != "assistant":   # 只打印助手的消息
+            continue
+
+        # 蓝色打印 Agent 名字
+        print(f"\033[94m{message['sender']}\033[0m:", end=" ")
+
+        if message["content"]:               # 有文本就打印文本
+            print(message["content"])
+
+        # 紫色打印工具调用（如果有）
+        tool_calls = message.get("tool_calls") or []
+        if len(tool_calls) &gt; 1:
+            print()
+        for tool_call in tool_calls:
+            f = tool_call["function"]
+            name, args = f["name"], f["arguments"]
+            arg_str = json.dumps(json.loads(args)).replace(":", "=")
+            print(f"\033[95m{name}\033[0m({arg_str[1:-1]})")</code></pre>
+        </div>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">if message["role"] != "assistant":
+    continue</div>
+            <div class="lr-note">只打印助手说的话。用户自己的输入、工具返回结果不在这里重复展示，界面更干净。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">arg_str = json.dumps(json.loads(args)).replace(":", "=")</div>
+            <div class="lr-note">工具参数原本是 JSON 字符串（形如 <code>{"city": "NYC"}</code>）。这里把冒号换成等号、再用 <code>[1:-1]</code> 去掉首尾大括号，打印成更像函数调用的 <code>transfer(city="NYC")</code> 样式，读起来更自然。</div>
+          </div>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">那些 \033[94m 是什么？——ANSI 颜色码</span>
+          <p>你在两个打印函数里反复看到的 <code>\033[94m</code>、<code>\033[95m</code>、<code>\033[0m</code>，是 <strong>ANSI 转义码</strong>。<code>\033</code> 是转义起始符，<code>94m</code>=亮蓝、<code>95m</code>=亮紫、<code>0m</code>=恢复默认。终端看到它们不会显示成文字，而是<strong>切换后续文字的颜色</strong>。所以蓝色的是 Agent 名、紫色的是工具调用——这就是终端里"彩色输出"的原理，没有任何魔法。</p>
+        </div>
+
+        <h2>四、亲手跑起来</h2>
+        <p>方式一：直接运行前面那段 <code>simple_loop_no_helpers.py</code>（<code>python simple_loop_no_helpers.py</code>）。方式二：用官方封装，<strong>一行</strong>就能启动带美化打印的交互：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">run_repl.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Agent
+from swarm.repl import run_demo_loop
+
+agent = Agent(name="Agent", instructions="You are a helpful agent.")
+
+# 一行启动交互循环；想要打字机效果就传 stream=True
+run_demo_loop(agent, stream=True)</code></pre>
+        </div>
+
+        <p><strong>运行方式：</strong>存成 <code>run_repl.py</code>，配置好 <code>OPENAI_API_KEY</code>（见第02章），执行 <code>python run_repl.py</code>。程序会停在 <code>User:</code> 提示符等你输入，输入一句回车，Agent 就会回答，然后又回到 <code>User:</code> 等下一句——如此往复。</p>
+
+        <div class="output-block">
+          <div class="out-label">预期输出（人机连续对话，Agent 名为蓝色、此处以文字示意）</div>
+          <pre>Starting Swarm CLI 🐝
+User: 你好，我叫小明
+Agent: 你好小明！很高兴认识你，有什么我可以帮忙的吗？
+User: 我刚才说我叫什么来着？
+Agent: 你刚才说你叫小明～
+User: </pre>
+        </div>
+
+        <div class="callout tip">
+          <span class="callout-title">看点在哪</span>
+          <p>第二轮它能答出"你叫小明"，正是因为循环把上一轮的对话历史<strong>攒着</strong>又传了进去。如果你把 <code>messages.extend(...)</code> 那句删掉，它立刻就"失忆"、答不上来了——这就是"手动维护 messages"存在的意义。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>为什么每轮都要把 response.messages 赋回 messages？</summary>
+            <div class="faq-body">
+              <p>因为 <strong>Swarm 不替你记忆</strong>。每次 <code>run</code> 都只看你传进去的 <code>messages</code>；这一轮 Agent 新说的话、调工具产生的消息，都装在返回的 <code>response.messages</code> 里。如果不赋回去（或 extend 回去），下一轮传进去的历史就<strong>停留在上一轮之前</strong>，LLM 看不到自己刚说过什么，也看不到最新的工具结果——表现出来就是"失忆"、答非所问。所以这行赋值是"连续对话"的命根子。</p>
+            </div>
+          </details>
+          <details>
+            <summary>run_demo_loop 和自己写循环有什么区别？</summary>
+            <div class="faq-body">
+              <p>骨架完全一样——都是"读输入 → append → run → 更新 messages 和 agent"。区别在于 <code>run_demo_loop</code> 帮你<strong>封装好了两件麻烦事</strong>：①<strong>流式支持</strong>（传 <code>stream=True</code> 就有打字机效果，内部自动消费生成器）；②<strong>彩色美化打印</strong>（蓝色 Agent 名、紫色工具调用）。想快速体验就用它；想完全掌控每个细节、或嵌进自己的应用里，就照着 simple_loop 自己写。</p>
+            </div>
+          </details>
+          <details>
+            <summary>交互循环里发生交接（handoff），下一轮真的会换 Agent 吗？</summary>
+            <div class="faq-body">
+              <p>会。关键就在 <code>agent = response.agent</code> 这一行。当某一轮里工具返回了一个新 Agent（第06章的交接），引擎会把 <code>response.agent</code> 设为接手的那个 Agent。循环把它赋回 <code>agent</code> 变量后，<strong>下一轮</strong>的 <code>client.run(agent=agent, ...)</code> 用的就是新 Agent 了。所以交接的"延续"，同样是靠循环手动维护 <code>agent</code> 实现的。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>连续对话 = 一个 <code>while True</code> 循环：读输入 → 追加历史 → <code>run</code> → 更新 <code>messages</code> 和 <code>agent</code> → 打印。</li>
+            <li>Swarm <strong>无状态</strong>，记忆靠<strong>你手动把 <code>messages</code> 攒着回传</strong>；不回传就会失忆。</li>
+            <li><code>agent = response.agent</code> 让<strong>交接</strong>能在多轮之间延续。</li>
+            <li>官方 <code>run_demo_loop</code> 是开箱即用版，多了<strong>流式支持</strong>和<strong>彩色打印</strong>；终端里的 <code>\033[94m</code> 只是 <strong>ANSI 颜色码</strong>。</li>
+          </ul>
+          <p style="margin-bottom:0;">工具、上下文、交接、循环、流式——拼图集齐了。最后一章，我们把它们拼成一张全景图，回望整个 Swarm。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-08.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">08 · 流式输出</span>
+          </a>
+          <a class="next" href="chapter-10.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">10 · 全景复盘与延伸</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

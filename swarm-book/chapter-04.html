@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>让 Agent 会用工具 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第四章 · Chapter 04</div>
+          <div class="ch-bignum">04</div>
+          <h1>让 Agent 会用工具</h1>
+          <p class="lede">只要写一个普通的 Python 函数，把它塞进 Agent，它就"会查天气"了。这一章我们拆开这个魔法，看看框架是怎么把你的函数"翻译"给 LLM 听懂的。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>学会给 Agent <strong>装工具</strong>：只要把普通函数放进 <code>functions=[...]</code> 就行。</li>
+          <li>搞懂一个关键问题：LLM 怎么"知道"你这个函数<strong>叫什么、要什么参数、是干嘛的</strong>？</li>
+          <li>逐行读懂 <code>function_to_json</code>——它把 Python 函数<strong>自动翻译成一份"工具说明书"（JSON Schema）</strong>。</li>
+          <li>明白为什么<strong>写好类型注解和 docstring</strong>会直接决定 Agent 用得好不好。</li>
+        </ul>
+
+        <h2>一、给 Agent 加一把新工具</h2>
+        <p>回忆第 01 章的类比：Agent 就是一个"带工具箱的员工"。所谓"加工具"，在 Swarm 里简单到让人不敢相信——<strong>写一个普通 Python 函数，塞进去就完事了</strong>。</p>
+
+        <p>看这个官方例子 <code>function_calling.py</code>，我们定义了一个查天气的函数 <code>get_weather</code>，然后把它放进 Agent 的 <code>functions</code> 列表里：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/function_calling.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+
+def get_weather(location) -&gt; str:
+    return "{'temp':67, 'unit':'F'}"
+
+
+agent = Agent(
+    name="Agent",
+    instructions="You are a helpful agent.",
+    functions=[get_weather],   # 把函数塞进工具箱
+)</code></pre>
+        </div>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：给员工的工具箱加一把螺丝刀</span>
+          <p>员工（Agent）本来只会动嘴（LLM 只会生成文字）。你往他的工具箱（<code>functions</code>）里放一把"查天气的螺丝刀"（<code>get_weather</code> 函数），从此他遇到"天气"相关的活，就懂得<strong>拿这把工具去用</strong>。你不需要教他怎么用，框架会帮忙。</p>
+        </div>
+
+        <p>注意 <code>get_weather</code> 就是一个再普通不过的函数——它自己完全不知道"LLM""Agent"这些概念的存在。这正是 Swarm 的设计之美：<strong>你写的还是普通 Python，框架负责把它"接"到大模型上。</strong></p>
+
+        <h2>二、灵魂拷问：LLM 到底怎么"认识"你的函数？</h2>
+        <p>这里藏着本章最关键的问题。第 01 章讲过，LLM <strong>只会读文字、生成文字</strong>，它并不能直接"看到"你 Python 里的一个函数对象。那它凭什么知道有个叫 <code>get_weather</code>、需要一个 <code>location</code> 参数的工具可用呢？</p>
+
+        <p>答案是：在把请求发给 LLM 之前，框架会先把你的每个函数<strong>翻译成一段 LLM 能读懂的文字描述</strong>——一份标准格式的 <strong>JSON Schema（工具说明书）</strong>。干这件"翻译"活儿的，就是 <code>util.py</code> 里的 <code>function_to_json</code> 函数。</p>
+
+        <div class="callout tip">
+          <span class="callout-title">一句话理解</span>
+          <p><code>function_to_json</code> 就是一台<strong>翻译机</strong>：左边喂进去一个 Python 函数，右边吐出来一份 JSON 格式的"工具说明书"，告诉 LLM "有这么个工具，它叫啥、要哪些参数、参数是什么类型、是干嘛用的"。</p>
+        </div>
+
+        <h2>三、逐行精读：function_to_json</h2>
+        <p>下面是完整源码。别怕，我们一段一段拆，每一行都讲清楚"为什么这么写"。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/util.py · function_to_json</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def function_to_json(func) -&gt; dict:
+    """
+    把一个 Python 函数转换成可 JSON 序列化的字典，
+    描述这个函数的签名：名字、说明、参数。
+    """
+    # ① 类型映射表：把 Python 类型 翻译成 JSON Schema 里的类型名
+    type_map = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        list: "array",
+        dict: "object",
+        type(None): "null",
+    }
+
+    # ② 读取函数签名（有哪些参数、参数的类型注解、默认值）
+    try:
+        signature = inspect.signature(func)
+    except ValueError as e:
+        raise ValueError(
+            f"Failed to get signature for function {func.__name__}: {str(e)}"
+        )
+
+    # ③ 遍历每个参数，生成 properties（每个参数长什么样）
+    parameters = {}
+    for param in signature.parameters.values():
+        try:
+            param_type = type_map.get(param.annotation, "string")
+        except KeyError as e:
+            raise KeyError(
+                f"Unknown type annotation {param.annotation} for parameter {param.name}: {str(e)}"
+            )
+        parameters[param.name] = {"type": param_type}
+
+    # ④ 找出"必填"参数：没有默认值的就是必填
+    required = [
+        param.name
+        for param in signature.parameters.values()
+        if param.default == inspect._empty
+    ]
+
+    # ⑤ 拼装成最终的 JSON Schema（工具说明书）
+    return {
+        "type": "function",
+        "function": {
+            "name": func.__name__,            # 函数名 → 工具名
+            "description": func.__doc__ or "",  # docstring → 工具说明
+            "parameters": {
+                "type": "object",
+                "properties": parameters,      # 参数清单
+                "required": required,          # 哪些参数必填
+            },
+        },
+    }</code></pre>
+        </div>
+
+        <h3>① 类型映射表 type_map</h3>
+        <p>Python 有自己的类型（<code>str</code>、<code>int</code>……），而 LLM 认的 JSON Schema 用的是另一套名字（<code>"string"</code>、<code>"integer"</code>……）。这张表就是两种语言的<strong>对照词典</strong>：</p>
+        <ul>
+          <li><code>str</code> → <code>"string"</code>（字符串）</li>
+          <li><code>int</code> → <code>"integer"</code>（整数）</li>
+          <li><code>float</code> → <code>"number"</code>（小数）</li>
+          <li><code>bool</code> → <code>"boolean"</code>（真/假）</li>
+          <li><code>list</code> → <code>"array"</code>（列表）、<code>dict</code> → <code>"object"</code>（字典）</li>
+        </ul>
+
+        <h3>② 读函数签名 inspect.signature</h3>
+        <p><code>inspect</code> 是 Python 自带的"内省"工具箱，可以在运行时<strong>反过来观察</strong>一个函数长什么样。<code>inspect.signature(func)</code> 会把函数的"签名"（有几个参数、每个参数叫什么、有没有类型注解、有没有默认值）全部读出来。<strong>不这么写会怎样？</strong>——那我们就只能靠猜，根本没法自动生成说明书。</p>
+
+        <h3>③ 遍历参数生成 properties</h3>
+        <p>对每个参数，用 <code>param.annotation</code>（也就是你写的类型注解，比如 <code>location: str</code> 里的 <code>str</code>）去查上面的词典，得到 JSON 类型。这里有个<strong>关键细节</strong>：</p>
+        <div class="callout warn">
+          <span class="callout-title">没写类型注解会怎样？</span>
+          <p>看这行：<code>type_map.get(param.annotation, "string")</code>。<code>.get</code> 的第二个参数 <code>"string"</code> 是<strong>默认值</strong>——如果你的参数<strong>没写类型注解</strong>（词典里查不到），框架就<strong>兜底当成字符串</strong>。所以 <code>function_calling.py</code> 里的 <code>get_weather(location)</code>（没写 <code>: str</code>）也能正常工作，<code>location</code> 会被当作 string。</p>
+        </div>
+
+        <h3>④ 判断哪些参数"必填" required</h3>
+        <p>这一段用一句话概括：<strong>没有默认值的参数 = 必填</strong>。判断依据是 <code>param.default == inspect._empty</code>。</p>
+        <p><code>inspect._empty</code> 是 Python 用来表示"这个参数压根没写默认值"的特殊标记。所以 <code>def f(a, b=10)</code> 里，<code>a</code> 是必填（没默认值），<code>b</code> 不是必填（默认值是 10）。为什么要区分？<strong>这样 LLM 才知道调用时哪些参数非给不可</strong>，不会漏填。</p>
+
+        <h3>⑤ 拼装说明书，重点看 description</h3>
+        <p>最后组装成 LLM 认识的标准结构。请特别留意这一行：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>关键一行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">"description": func.__doc__ or "",  # 函数的 docstring 变成工具说明</code></pre>
+        </div>
+        <p><code>func.__doc__</code> 就是你写在函数里的那段三引号 <strong>docstring</strong>。它被直接拿来当作工具的 <code>description</code>——也就是<strong>告诉 LLM "这个工具是干嘛用的、什么时候该用它"</strong>的唯一说明。</p>
+
+        <div class="callout warn">
+          <span class="callout-title">为什么 docstring 如此重要（务必记住）</span>
+          <p>LLM 决定"要不要调用某个工具"，几乎<strong>全靠读这段 description</strong>。如果你的函数没写 docstring，说明书里的说明就是空的，LLM 只能靠函数名瞎猜，很容易该调用时不调用、或者调错工具。<strong>所以：写工具函数，一定要写清楚 docstring！</strong>把它当成"贴在工具上的使用标签"来写。</p>
+        </div>
+
+        <h2>四、图解：从 Python 函数到工具说明书</h2>
+        <p>把上面这套翻译过程画成一张图，一眼就懂：</p>
+
+        <figure class="figure">
+          <svg width="760" height="420" viewBox="0 0 760 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Python 函数转换为 JSON Schema 的示意图">
+            <defs>
+              <marker id="arrF" markerWidth="12" markerHeight="12" refX="9" refY="3" orient="auto"><path d="M0 0 L9 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="arrMap" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 左：Python 函数 -->
+            <rect x="18" y="60" width="300" height="300" rx="12" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="168" y="48" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">Python 函数（你写的）</text>
+            <text x="36" y="98" font-family="monospace" font-size="12" fill="#335566">def get_weather(</text>
+            <text x="60" y="118" font-family="monospace" font-size="12" fill="#B96A1B">location: str,</text>
+            <text x="60" y="138" font-family="monospace" font-size="12" fill="#B96A1B">units: str = "F"</text>
+            <text x="36" y="158" font-family="monospace" font-size="12" fill="#335566">) -&gt; str:</text>
+            <rect x="52" y="172" width="248" height="52" rx="6" fill="#E0913A18" stroke="#E0913A"/>
+            <text x="64" y="192" font-family="monospace" font-size="11" fill="#4A423A">"""查询某地天气。</text>
+            <text x="64" y="210" font-family="monospace" font-size="11" fill="#4A423A">   返回温度和单位。"""</text>
+            <text x="60" y="248" font-family="monospace" font-size="12" fill="#8A7F72">    return "..."</text>
+
+            <text x="36" y="292" font-family="sans-serif" font-size="11" fill="#B96A1B">函数名 · 参数 · 类型 · 默认值 · docstring</text>
+            <text x="36" y="312" font-family="sans-serif" font-size="11" fill="#8A7F72">（inspect 全部读得出来）</text>
+
+            <!-- 中：转换机 -->
+            <path d="M322 210 L392 210" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arrF)"/>
+            <rect x="330" y="150" width="120" height="120" rx="60" fill="#E0913A" stroke="#B96A1B" stroke-width="2" opacity="0.92"/>
+            <text x="390" y="200" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">function</text>
+            <text x="390" y="218" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">_to_json</text>
+            <text x="390" y="240" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">翻译机</text>
+            <path d="M448 210 L518 210" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arrF)"/>
+
+            <!-- 右：JSON Schema -->
+            <rect x="450" y="30" width="296" height="360" rx="12" fill="#33556610" stroke="#335566"/>
+            <text x="598" y="22" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">JSON 工具说明书（给 LLM 看）</text>
+            <text x="466" y="60" font-family="monospace" font-size="11" fill="#335566">{ "type": "function",</text>
+            <text x="466" y="82" font-family="monospace" font-size="11" fill="#335566">  "function": {</text>
+            <text x="482" y="106" font-family="monospace" font-size="11" fill="#B96A1B">"name": "get_weather",</text>
+            <text x="482" y="130" font-family="monospace" font-size="11" fill="#B96A1B">"description": "查询某地天气...",</text>
+            <text x="482" y="154" font-family="monospace" font-size="11" fill="#335566">"parameters": {</text>
+            <text x="498" y="176" font-family="monospace" font-size="11" fill="#335566">"type": "object",</text>
+            <text x="498" y="198" font-family="monospace" font-size="11" fill="#335566">"properties": {</text>
+            <text x="514" y="220" font-family="monospace" font-size="11" fill="#B96A1B">"location": {"type":"string"},</text>
+            <text x="514" y="242" font-family="monospace" font-size="11" fill="#B96A1B">"units": {"type":"string"}</text>
+            <text x="498" y="264" font-family="monospace" font-size="11" fill="#335566">},</text>
+            <text x="498" y="286" font-family="monospace" font-size="11" fill="#B96A1B">"required": ["location"]</text>
+            <text x="482" y="308" font-family="monospace" font-size="11" fill="#335566">} } }</text>
+
+            <!-- 对应关系标注 -->
+            <text x="466" y="346" font-family="sans-serif" font-size="11" fill="#335566">函数名→name　docstring→description</text>
+            <text x="466" y="366" font-family="sans-serif" font-size="11" fill="#335566">类型→properties　无默认值→required</text>
+          </svg>
+          <figcaption>图 4-1：<code>function_to_json</code> 把一个普通 Python 函数翻译成 LLM 能读懂的 JSON 工具说明书。函数名→name，docstring→description，参数类型→properties，没有默认值的参数→required。</figcaption>
+        </figure>
+
+        <div class="callout tip">
+          <span class="callout-title">四条对应关系（背下来）</span>
+          <p><strong>函数名</strong> → <code>name</code>（工具叫什么）<br>
+          <strong>docstring</strong> → <code>description</code>（工具是干嘛的）<br>
+          <strong>参数 + 类型注解</strong> → <code>properties</code>（要哪些参数、什么类型）<br>
+          <strong>没有默认值的参数</strong> → <code>required</code>（哪些必须填）</p>
+        </div>
+
+        <h2>五、跑一个完整例子</h2>
+        <p>下面是完整可运行的 <code>function_calling.py</code>。它会问 LLM "纽约天气怎么样"，LLM 发现自己有 <code>get_weather</code> 这个工具，就会"点单"要求调用它；框架执行函数、把结果喂回去，LLM 最终用人话作答。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/function_calling.py（完整）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+
+def get_weather(location) -&gt; str:
+    return "{'temp':67, 'unit':'F'}"
+
+
+agent = Agent(
+    name="Agent",
+    instructions="You are a helpful agent.",
+    functions=[get_weather],
+)
+
+messages = [{"role": "user", "content": "What's the weather in NYC?"}]
+
+response = client.run(agent=agent, messages=messages)
+print(response.messages[-1]["content"])</code></pre>
+        </div>
+
+        <p><strong>运行方式</strong>（需要配置好 <code>OPENAI_API_KEY</code>，这一步会真正调用大模型）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>终端</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash">export OPENAI_API_KEY="sk-..."
+python function_calling.py</code></pre>
+        </div>
+
+        <p><strong>预期输出</strong>（大意如下，措辞每次可能略有不同）：</p>
+        <div class="output-block">
+          <div class="out-label">终端输出</div>
+          <pre>The current weather in NYC is 67°F.
+（纽约现在气温 67 华氏度。）</pre>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">幕后发生了什么</span>
+          <p>① 框架用 <code>function_to_json</code> 把 <code>get_weather</code> 转成说明书，连同你的问题一起发给 LLM。② LLM 读到"有个查天气工具"，回复"请调用 <code>get_weather(location='NYC')</code>"。③ 框架真正执行这个函数，拿到 <code>{'temp':67, 'unit':'F'}</code>，喂回给 LLM。④ LLM 用这份真实数据组织出最终中文/英文回答。这正是第 01 章讲的"点单 → 做菜 → 上菜"三步走。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>如果我不写类型注解会怎样？</summary>
+            <div class="faq-body">
+              <p>不会报错，框架会<strong>兜底把它当成字符串（string）</strong>。因为源码里是 <code>type_map.get(param.annotation, "string")</code>，查不到类型时用默认值 <code>"string"</code>。所以 <code>get_weather(location)</code> 这种没注解的写法也能跑。不过为了让 LLM 更准确地填参数（比如某个参数其实是整数），<strong>建议还是老老实实写上类型注解</strong>。</p>
+            </div>
+          </details>
+          <details>
+            <summary>docstring 真的会影响效果吗？还是只是给人看的注释？</summary>
+            <div class="faq-body">
+              <p>会，而且影响很大。docstring 被直接当作工具的 <code>description</code> 发给 LLM，它<strong>就是 LLM 判断"要不要用、什么时候用这个工具"的主要依据</strong>。没有 docstring，LLM 只能靠函数名猜，容易用错或漏用。把 docstring 想成"贴在工具上的使用说明标签"，写清楚它的用途和适用场景。</p>
+            </div>
+          </details>
+          <details>
+            <summary>带默认值的参数（比如 units="F"）LLM 需要填吗？</summary>
+            <div class="faq-body">
+              <p>不强制。有默认值的参数<strong>不会</strong>出现在 <code>required</code> 里（判断依据是 <code>param.default == inspect._empty</code>），所以 LLM 可以选择不填，框架就用默认值。只有<strong>没有默认值</strong>的参数才是必填。</p>
+            </div>
+          </details>
+          <details>
+            <summary>LLM 会自己跑我的 get_weather 吗？</summary>
+            <div class="faq-body">
+              <p>不会——这点第 01 章强调过。LLM 只负责"点单"（说要调用哪个函数、参数是什么），<strong>真正执行函数的永远是框架</strong>（就在 <code>core.py</code> 的 <code>handle_tool_calls</code> 里，第 07 章会细讲）。所以就算工具函数里有危险操作，也是你的程序在可控地执行，不是 LLM 偷偷替你跑。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>给 Agent 加工具超简单：写个普通函数，放进 <code>functions=[...]</code> 即可。</li>
+            <li>LLM 看不懂 Python 函数对象，靠 <strong><code>function_to_json</code></strong> 把它翻译成 <strong>JSON 工具说明书</strong>。</li>
+            <li>四条对应关系：<strong>函数名→name、docstring→description、参数类型→properties、无默认值的参数→required</strong>。</li>
+            <li>没写类型注解会<strong>兜底当字符串</strong>；docstring 是 LLM 判断该不该用工具的关键，<strong>务必写好</strong>。</li>
+          </ul>
+          <p style="margin-bottom:0;">现在 Agent 会用工具了。但有些信息（比如"用户是谁"）不该让 LLM 填，又要在工具间共享——下一章的<strong>上下文变量</strong>就是解法。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-03.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">03 · 数据模型骨架</span>
+          </a>
+          <a class="next" href="chapter-05.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">05 · 上下文变量</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

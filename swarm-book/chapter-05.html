@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上下文变量 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第五章 · Chapter 05</div>
+          <div class="ch-bignum">05</div>
+          <h1>上下文变量</h1>
+          <p class="lede">"用户叫什么、user_id 多少"这类信息，既不该让 LLM 瞎填，又要在整场对话里被记住、被工具用到。Swarm 用一个"随身档案袋"优雅地解决了它。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解 <strong>context_variables（上下文变量）</strong>是什么：Agent 的"随身档案袋"。</li>
+          <li>学会用<strong>函数式 instructions</strong>：让 system prompt 根据档案袋<strong>动态生成</strong>（比如用名字问候）。</li>
+          <li>看懂框架的两个"魔法"：怎样把档案袋喂给动态 instructions，又怎样自动塞进工具函数。</li>
+          <li>体会 Swarm 的设计巧思：<strong>约定优于配置</strong>，以及"这些数据为什么不让 LLM 看见"。</li>
+        </ul>
+
+        <h2>一、什么是上下文变量：Agent 的随身档案袋</h2>
+        <p>想象你是一名客服。每次接待客户，手里都夹着一个<strong>档案袋</strong>，上面写着"这位客户叫 James，会员号 123"。无论对话进行到第几轮、你要查账户还是要打招呼，随手翻档案袋就知道客户是谁——你不需要每句话都重新问一遍"请问您贵姓"。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：随身档案袋</span>
+          <p><code>context_variables</code> 就是 Agent 的<strong>随身档案袋</strong>：一个普通的 Python 字典，装着"用户是谁、user_id 多少、当前订单号"等<strong>跨轮次都要记住</strong>的信息。它会一直跟着这场对话，动态生成的问候语能用它，工具函数也能翻它。</p>
+        </div>
+
+        <p>为什么不把这些信息直接写进对话消息里让 LLM 记？因为像 <code>user_id=123</code> 这种是<strong>程序内部数据</strong>，不该由 LLM 来"猜"或"填"（它可能填错，甚至编一个）。档案袋让这类数据在<strong>程序侧</strong>可靠地流转，稍后你会看到框架甚至会特意<strong>把它对 LLM 藏起来</strong>。</p>
+
+        <h2>二、逐行精读：context_variables.py</h2>
+        <p>先看官方示例的全貌，再逐块拆解。它做了两件有代表性的事：<strong>用名字问候用户</strong>，以及<strong>让一个工具函数读取档案袋</strong>。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/context_variables.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+
+# ① 函数式 instructions：system prompt 根据档案袋"动态生成"
+def instructions(context_variables):
+    name = context_variables.get("name", "User")
+    return f"You are a helpful agent. Greet the user by name ({name})."
+
+
+# ② 一个能读档案袋的工具函数
+def print_account_details(context_variables: dict):
+    user_id = context_variables.get("user_id", None)
+    name = context_variables.get("name", None)
+    print(f"Account Details: {name} {user_id}")
+    return "Success"
+
+
+agent = Agent(
+    name="Agent",
+    instructions=instructions,          # 注意：这里传的是"函数"本身，不是字符串
+    functions=[print_account_details],
+)
+
+# ③ 准备档案袋
+context_variables = {"name": "James", "user_id": 123}</code></pre>
+        </div>
+
+        <h3>① 函数式 instructions：会"看人下菜碟"的说明书</h3>
+        <p>第 03 章讲过，Agent 的 <code>instructions</code>（系统提示词）既可以是一个<strong>固定字符串</strong>，也可以是一个 <strong>Callable（可调用的函数）</strong>。这里就是后者：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>动态 instructions</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def instructions(context_variables):
+    name = context_variables.get("name", "User")   # 从档案袋取名字，取不到就用 "User"
+    return f"You are a helpful agent. Greet the user by name ({name})."</code></pre>
+        </div>
+        <p>它接收档案袋，返回一段<strong>随档案袋内容变化</strong>的说明书。档案袋里 <code>name="James"</code>，生成的 system prompt 就变成"…用名字（James）问候用户"。<strong>为什么用 <code>.get("name", "User")</code> 而不是 <code>["name"]</code>？</strong>——用 <code>.get</code> 带默认值，即使档案袋里没有 <code>name</code> 也不会报错（KeyError），而是安全地退回到 <code>"User"</code>。这是写"档案袋读取"时的好习惯。</p>
+
+        <h3>② 能读档案袋的工具函数</h3>
+        <p><code>print_account_details</code> 是一个普通工具函数（回忆第 04 章：放进 <code>functions</code> 就能被 Agent 使用）。它的特别之处只有一点——<strong>它的参数里有一个正好叫 <code>context_variables</code> 的参数</strong>：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>能读档案袋的工具</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def print_account_details(context_variables: dict):
+    user_id = context_variables.get("user_id", None)
+    name = context_variables.get("name", None)
+    print(f"Account Details: {name} {user_id}")
+    return "Success"</code></pre>
+        </div>
+        <p>就靠这个<strong>特定名字的参数</strong>，框架会自动把档案袋递到它手里（下一节揭秘原理）。函数返回 <code>"Success"</code>，这个返回值会作为工具执行结果喂回给 LLM。</p>
+
+        <h3>③ 把档案袋交给 run()</h3>
+        <p>最后，我们把档案袋通过 <code>run()</code> 的 <code>context_variables</code> 参数传进去，它就会在这场对话里全程可用。</p>
+
+        <h2>三、框架内部的三个"魔法"</h2>
+        <p>示例代码看起来很省心：我们既没手动把 <code>name</code> 拼进 prompt，也没手动把档案袋传给工具。这些"自动"的部分，都藏在 <code>core.py</code> 里。这里有三处巧思。</p>
+
+        <h3>魔法一：instructions 是函数就调用它</h3>
+        <p>在组装发给 LLM 的消息前，框架先决定 system prompt 到底是什么（<code>core.py</code> 的 <code>get_chat_completion</code>）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · get_chat_completion</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">instructions = (
+    agent.instructions(context_variables)   # 若 instructions 是函数 → 传入档案袋、调用它
+    if callable(agent.instructions)         # callable() 判断它是不是"可调用"的
+    else agent.instructions                 # 否则它就是普通字符串，直接用
+)
+messages = [{"role": "system", "content": instructions}] + history</code></pre>
+        </div>
+        <p>一句话：<strong>用 <code>callable()</code> 判断 <code>instructions</code> 是不是函数</strong>。是函数，就把档案袋传给它、拿到动态生成的字符串；不是函数（是普通字符串），就原样使用。这就是我们的 <code>instructions(context_variables)</code> 能被自动调用、并拿到档案袋的原因。</p>
+
+        <h3>魔法二：按参数名自动把档案袋塞进工具</h3>
+        <p>当 LLM 要求调用某个工具时，框架在真正执行前会做一次检查（<code>core.py</code> 的 <code>handle_tool_calls</code>）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · handle_tool_calls</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python"># __CTX_VARS_NAME__ = "context_variables"  （文件顶部定义的常量）
+
+func = function_map[name]
+# 如果这个工具函数的参数名里，有一个正好叫 "context_variables"…
+if __CTX_VARS_NAME__ in func.__code__.co_varnames:
+    args[__CTX_VARS_NAME__] = context_variables   # …就自动把档案袋塞进去
+raw_result = function_map[name](**args)</code></pre>
+        </div>
+        <p>拆开看：</p>
+        <ul>
+          <li><code>__CTX_VARS_NAME__</code> 是文件顶部定义的常量，值就是字符串 <code>"context_variables"</code>。</li>
+          <li><code>func.__code__.co_varnames</code> 能列出这个函数<strong>所有局部变量名（含参数名）</strong>。</li>
+          <li>整句是说：<strong>如果工具函数的参数里有一个正好叫 <code>context_variables</code>，框架就悄悄把档案袋作为这个参数传进去。</strong></li>
+        </ul>
+        <div class="callout tip">
+          <span class="callout-title">设计巧思：约定优于配置</span>
+          <p>框架没有让你写任何"请把档案袋给我"的配置或装饰器，而是约定：<strong>只要你的工具函数参数名叫 <code>context_variables</code>，就自动能拿到它</strong>。这叫"约定优于配置（convention over configuration）"——用一个大家都遵守的命名约定，省掉一堆繁琐设置。所以参数名<strong>必须一字不差</strong>叫 <code>context_variables</code>，拼错就拿不到。</p>
+        </div>
+
+        <h3>魔法三：把档案袋从 LLM 眼前藏起来</h3>
+        <p>这里是最点睛的一笔。第 04 章说过，框架会用 <code>function_to_json</code> 把工具函数翻译成说明书给 LLM。但 <code>print_account_details</code> 有个 <code>context_variables</code> 参数——如果照实翻译，LLM 就会以为"我调用这个工具时得填一个 context_variables 参数"，然后<strong>瞎编一个</strong>。这显然不对。于是框架在生成说明书后，专门把它<strong>抹掉</strong>（同样在 <code>get_chat_completion</code> 里）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · 对 LLM 隐藏档案袋</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">tools = [function_to_json(f) for f in agent.functions]
+# hide context_variables from model —— 别让 LLM 看到这个参数
+for tool in tools:
+    params = tool["function"]["parameters"]
+    params["properties"].pop(__CTX_VARS_NAME__, None)   # 从参数清单里删掉
+    if __CTX_VARS_NAME__ in params["required"]:
+        params["required"].remove(__CTX_VARS_NAME__)     # 也从"必填"里删掉</code></pre>
+        </div>
+        <p><code>.pop(..., None)</code> 表示"如果有 <code>context_variables</code> 这个参数就删掉，没有也不报错"。这样一来：<strong>LLM 完全看不见这个参数</strong>，自然不会去填它；而档案袋则由"魔法二"在程序侧悄悄注入。分工清清楚楚——<strong>LLM 只填它该填的业务参数，内部数据由框架负责。</strong></p>
+
+        <h2>四、图解：一个档案袋，两条去路</h2>
+        <p>档案袋进入 <code>run()</code> 后，会同时流向两个地方：动态生成的 instructions，以及带 <code>context_variables</code> 参数的工具函数。而对 LLM，它是隐藏的。</p>
+
+        <figure class="figure">
+          <svg width="760" height="360" viewBox="0 0 760 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="上下文变量的流向示意图">
+            <defs>
+              <marker id="arrC" markerWidth="11" markerHeight="11" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="arrX" markerWidth="11" markerHeight="11" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B" opacity="0.4"/></marker>
+            </defs>
+
+            <!-- 档案袋 -->
+            <rect x="30" y="140" width="180" height="90" rx="14" fill="#F3ECDF" stroke="#B96A1B" stroke-width="2"/>
+            <text x="120" y="128" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">档案袋 context_variables</text>
+            <text x="120" y="178" text-anchor="middle" font-family="monospace" font-size="12" fill="#335566">{"name": "James",</text>
+            <text x="120" y="200" text-anchor="middle" font-family="monospace" font-size="12" fill="#335566">"user_id": 123}</text>
+            <text x="120" y="252" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">传给 run()，全程可用</text>
+
+            <!-- 去路一：动态 instructions -->
+            <path d="M212 165 L358 95" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arrC)"/>
+            <rect x="360" y="50" width="360" height="86" rx="12" fill="#E0913A18" stroke="#E0913A"/>
+            <text x="540" y="42" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">去路① 动态 instructions</text>
+            <text x="378" y="82" font-family="monospace" font-size="12" fill="#B96A1B">callable(instructions) → 调用它</text>
+            <text x="378" y="106" font-family="sans-serif" font-size="12" fill="#4A423A">生成 system prompt：用名字(James)问候</text>
+            <text x="378" y="126" font-family="sans-serif" font-size="11" fill="#8A7F72">（魔法一）</text>
+
+            <!-- 去路二：工具函数 -->
+            <path d="M212 205 L358 275" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arrC)"/>
+            <rect x="360" y="238" width="360" height="90" rx="12" fill="#33556610" stroke="#335566"/>
+            <text x="540" y="230" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">去路② 工具函数</text>
+            <text x="378" y="266" font-family="monospace" font-size="12" fill="#335566">参数名 == "context_variables" ？</text>
+            <text x="378" y="290" font-family="sans-serif" font-size="12" fill="#4A423A">是 → 框架自动把档案袋塞进去</text>
+            <text x="378" y="310" font-family="sans-serif" font-size="11" fill="#8A7F72">（魔法二：约定优于配置）</text>
+
+            <!-- 藏起来提示 -->
+            <rect x="30" y="290" width="300" height="52" rx="10" fill="#B96A1B12" stroke="#B96A1B" stroke-dasharray="5 4"/>
+            <text x="46" y="314" font-family="sans-serif" font-size="12" fill="#B96A1B">⚠ 对 LLM 隐藏：说明书里 pop 掉此参数</text>
+            <text x="46" y="332" font-family="sans-serif" font-size="11" fill="#8A7F72">（魔法三，避免 LLM 瞎填内部数据）</text>
+          </svg>
+          <figcaption>图 5-1：档案袋 <code>context_variables</code> 同时流向"动态 instructions"和"带同名参数的工具函数"；而在发给 LLM 的工具说明书里，这个参数被特意藏起来。</figcaption>
+        </figure>
+
+        <h2>五、跑一个完整例子</h2>
+        <p>完整的 <code>context_variables.py</code> 会跑<strong>两次</strong> <code>run()</code>：第一次让 Agent 打招呼（触发动态 instructions），第二次让它打印账户详情（触发能读档案袋的工具函数）。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/context_variables.py（完整）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+
+def instructions(context_variables):
+    name = context_variables.get("name", "User")
+    return f"You are a helpful agent. Greet the user by name ({name})."
+
+
+def print_account_details(context_variables: dict):
+    user_id = context_variables.get("user_id", None)
+    name = context_variables.get("name", None)
+    print(f"Account Details: {name} {user_id}")
+    return "Success"
+
+
+agent = Agent(
+    name="Agent",
+    instructions=instructions,
+    functions=[print_account_details],
+)
+
+context_variables = {"name": "James", "user_id": 123}
+
+# 第一次：打招呼 —— 触发动态 instructions，用名字问候
+response = client.run(
+    messages=[{"role": "user", "content": "Hi!"}],
+    agent=agent,
+    context_variables=context_variables,
+)
+print(response.messages[-1]["content"])
+
+# 第二次：打印账户详情 —— 触发工具函数，读取档案袋
+response = client.run(
+    messages=[{"role": "user", "content": "Print my account details!"}],
+    agent=agent,
+    context_variables=context_variables,
+)
+print(response.messages[-1]["content"])</code></pre>
+        </div>
+
+        <p><strong>运行方式</strong>（需配置 <code>OPENAI_API_KEY</code>，会真正调用大模型）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>终端</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash">export OPENAI_API_KEY="sk-..."
+python context_variables.py</code></pre>
+        </div>
+
+        <p><strong>预期输出</strong>（措辞每次略有不同，重点看行为）：</p>
+        <div class="output-block">
+          <div class="out-label">终端输出</div>
+          <pre>Hi James! How can I help you today?
+（第一次：因为动态 instructions 读到了 name=James，Agent 主动用名字问候）
+
+Account Details: James 123
+Your account details have been printed successfully.
+（第二次：工具函数 print_account_details 拿到档案袋，
+ 打印出 "Account Details: James 123"，随后 Agent 回复已成功打印）</pre>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">对照三个魔法看输出</span>
+          <p>第一次能叫出"James"，是<strong>魔法一</strong>把档案袋喂给了动态 instructions；第二次打印出 <code>James 123</code>，是<strong>魔法二</strong>把档案袋自动塞进了 <code>print_account_details</code>；而整个过程中 LLM 从没被要求填 <code>context_variables</code>，是<strong>魔法三</strong>把它藏了起来。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>context_variables 会被发给 LLM 吗？会泄露 user_id 吗？</summary>
+            <div class="faq-body">
+              <p>作为<strong>工具参数</strong>是不会的——框架专门用 <code>params["properties"].pop("context_variables", None)</code> 把它从工具说明书里删掉了（魔法三），LLM 根本看不到这个参数、也不会去填它。不过要注意：如果你在<strong>动态 instructions 里主动把某个值拼进了 prompt</strong>（比如把名字写进问候语），那部分就会作为 system prompt 发给 LLM。所以"藏起来"针对的是工具参数；你自己主动放进 prompt 的内容当然会发出去。</p>
+            </div>
+          </details>
+          <details>
+            <summary>工具函数怎样才能拿到档案袋？</summary>
+            <div class="faq-body">
+              <p>只有一个条件：<strong>把参数名取成正好叫 <code>context_variables</code></strong>。框架靠 <code>if "context_variables" in func.__code__.co_varnames</code> 来检测（魔法二）。名字必须一字不差——写成 <code>ctx</code>、<code>context_vars</code> 都拿不到。这就是"约定优于配置"：约定好这个名字，就不用任何额外声明。</p>
+            </div>
+          </details>
+          <details>
+            <summary>instructions 传函数和传字符串有什么区别？</summary>
+            <div class="faq-body">
+              <p>传<strong>字符串</strong>：system prompt 固定不变。传<strong>函数</strong>（Callable）：框架用 <code>callable()</code> 检测到它是函数后，会把当前档案袋传进去调用它（魔法一），于是 prompt 可以<strong>随档案袋动态变化</strong>——比如根据不同用户名生成不同问候语。呼应第 03 章：<code>instructions</code> 的类型既可以是 <code>str</code> 也可以是 <code>Callable</code>。</p>
+            </div>
+          </details>
+          <details>
+            <summary>档案袋里没有某个键（比如没写 user_id）会怎样？</summary>
+            <div class="faq-body">
+              <p>取决于你怎么读。例子里都用了 <code>.get("user_id", None)</code> 这种带默认值的安全写法，取不到就返回默认值（<code>None</code> 或 <code>"User"</code>），不会崩。如果用 <code>context_variables["user_id"]</code> 这种方括号取法，缺键就会抛 <code>KeyError</code>。所以读档案袋<strong>推荐用 <code>.get()</code> 并给个合理默认值</strong>。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><strong>context_variables</strong> 是 Agent 的"随身档案袋"——一个普通字典，装着跨轮次要记住的内部信息。</li>
+            <li><strong>魔法一</strong>：<code>callable()</code> 判断 instructions 是函数就调用它，实现<strong>动态 system prompt</strong>。</li>
+            <li><strong>魔法二</strong>：工具函数只要有个叫 <code>context_variables</code> 的参数，框架就自动把档案袋塞进去——<strong>约定优于配置</strong>。</li>
+            <li><strong>魔法三</strong>：生成工具说明书时把 <code>context_variables</code> <code>pop</code> 掉，<strong>对 LLM 隐藏</strong>，避免它瞎填内部数据。</li>
+          </ul>
+          <p style="margin-bottom:0;">工具会用了、上下文能共享了。下一章我们讲 Agent 之间怎么"转接客户"——<strong>handoff（交接）</strong>，也就是 Swarm 蜂群协作的关键。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-04.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">04 · 让 Agent 会用工具</span>
+          </a>
+          <a class="next" href="chapter-06.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">06 · Agent 交接 handoff</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

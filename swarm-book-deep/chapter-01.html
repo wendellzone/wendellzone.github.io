@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>无状态设计 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第一章 · Chapter 01</div>
+          <div class="ch-bignum">01</div>
+          <h1>无状态设计</h1>
+          <p class="lede">Swarm 的引擎自己<strong>什么都不记得</strong>。这个看似偷懒的决定，其实是它最重要的设计哲学。这一章我们搞清楚：状态到底放在哪、谁来维护、为什么这样最好。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解"有状态 vs 无状态"到底在说什么。</li>
+          <li>看清 Swarm 把状态<strong>全部外置</strong>到 <code>messages</code> 和 <code>context_variables</code> 的设计。</li>
+          <li>从源码确认 <code>Swarm</code> 引擎实例上<strong>不存任何对话状态</strong>。</li>
+          <li>明白这带来的好处（可并发、可重放、易测试）与代价（调用者要自己维护状态）。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版里你写过这样的交互循环（<code>simple_loop_no_helpers.py</code> 的核心）：每轮把用户输入塞进 <code>messages</code>，调用 <code>client.run()</code>，再<strong>手动</strong>把返回的 <code>response.messages</code> 赋回给 <code>messages</code>、把 <code>response.agent</code> 赋回给 <code>agent</code>。当时你可能觉得"这一步有点啰嗦"。这一章会告诉你：<strong>这份"啰嗦"正是 Swarm 无状态设计的体现</strong>，而且它是故意的。</p>
+
+        <h2>一、什么是"有状态"与"无状态"</h2>
+        <p>用一个生活类比就懂：</p>
+        <div class="callout analogy">
+          <span class="callout-title">类比：会记账的老店 vs 凭小票的快餐店</span>
+          <p><strong>有状态</strong>像一家会记账的老店：你是熟客，老板脑子里记着"你上次点了什么、还欠多少钱"。方便，但老板一换人、店一打烊，记忆就可能丢失或对不上。<br>
+          <strong>无状态</strong>像快餐店：店员<strong>什么都不记</strong>，你的一切都印在手里那张<strong>小票</strong>上。谁来服务你都行，换个窗口也能接着办——因为状态不在店员脑子里，而在你手上的小票里。</p>
+          <p>Swarm 选择了后者：<strong>引擎（店员）不记任何东西，全部状态都在你手上的"小票"——也就是 <code>messages</code> 和 <code>context_variables</code> 里。</strong></p>
+        </div>
+
+        <h2>二、从源码确认：引擎上没有对话状态</h2>
+        <p>先看 <code>Swarm</code> 类的构造函数（<code>core.py</code> 第 26–30 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · Swarm.__init__</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">class Swarm:
+    def __init__(self, client=None):
+        if not client:
+            client = OpenAI()
+        self.client = client</code></pre>
+        </div>
+        <p>看清楚：整个 <code>Swarm</code> 实例上<strong>只存了一个 <code>self.client</code></strong>（OpenAI 网络客户端）。没有 <code>self.messages</code>、没有 <code>self.history</code>、没有 <code>self.current_agent</code>——<strong>它不保存任何一次对话的内容</strong>。</p>
+        <p>再看 <code>run()</code> 的签名（<code>core.py</code> 第 231–241 行）——所有它需要知道的东西，都是<strong>调用时通过参数传进去</strong>的：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · run 的签名</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def run(
+    self,
+    agent: Agent,              # 这一轮用哪个 Agent —— 调用者传进来
+    messages: List,            # 到目前为止的完整对话 —— 调用者传进来
+    context_variables: dict = {},  # 随身档案袋 —— 调用者传进来
+    model_override: str = None,
+    stream: bool = False,
+    debug: bool = False,
+    max_turns: int = float("inf"),
+    execute_tools: bool = True,
+) -> Response:</code></pre>
+        </div>
+        <p><code>agent</code>、<code>messages</code>、<code>context_variables</code> 三样"状态"全靠参数传入。<code>run()</code> 用完就"忘"，下次你还得再传一遍。这就是无状态的本质：<strong>引擎不持有状态，状态在参数里进、在返回值里出。</strong></p>
+
+        <h2>三、状态怎么"进出"引擎</h2>
+        <p><code>run()</code> 结尾把结果打包成 <code>Response</code> 交还给你（<code>core.py</code> 第 288–292 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · run 的返回</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">    return Response(
+        messages=history[init_len:],   # 这一轮新产生的消息
+        agent=active_agent,            # 最终"当前 Agent"（可能因交接换了）
+        context_variables=context_variables,  # 更新后的档案袋
+    )</code></pre>
+        </div>
+        <p>于是就形成一个清晰的循环：<strong>你把状态传进去 → 引擎算一轮 → 把更新后的状态还给你 → 你保存好，下一轮再传进去。</strong>引擎全程不留底。</p>
+
+        <figure class="figure">
+          <svg width="760" height="330" viewBox="0 0 760 330" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="无状态数据流图">
+            <defs><marker id="a1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+            <marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker></defs>
+
+            <!-- 调用者（持有状态） -->
+            <rect x="40" y="90" width="240" height="150" rx="14" fill="#33556610" stroke="#335566" stroke-width="1.5"/>
+            <text x="160" y="116" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">你的程序（调用者）</text>
+            <text x="160" y="136" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">← 状态的唯一持有者 →</text>
+            <rect x="62" y="150" width="196" height="34" rx="7" fill="#E0913A20" stroke="#B96A1B"/>
+            <text x="160" y="172" text-anchor="middle" font-family="monospace" font-size="12" fill="#B96A1B">messages（对话历史）</text>
+            <rect x="62" y="192" width="196" height="34" rx="7" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="160" y="214" text-anchor="middle" font-family="monospace" font-size="12" fill="#B96A1B">context_variables</text>
+
+            <!-- 引擎（无状态） -->
+            <path d="M560 90 L640 130 L640 210 L560 250 L480 210 L480 130 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="560" y="160" text-anchor="middle" font-family="serif" font-size="15" fill="#fff">Swarm.run()</text>
+            <text x="560" y="182" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#fff">无状态 · 用完即忘</text>
+
+            <!-- 传入 -->
+            <path d="M284 150 L476 128" stroke="#335566" stroke-width="2" marker-end="url(#a2)"/>
+            <text x="380" y="128" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#335566">① 传入 agent / messages / ctx</text>
+
+            <!-- 传出 -->
+            <path d="M476 212 L284 200" stroke="#B96A1B" stroke-width="2" marker-end="url(#a1)"/>
+            <text x="380" y="228" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#B96A1B">② 返回 Response（新消息/agent/ctx）</text>
+
+            <!-- 自环：调用者保存 -->
+            <path d="M110 240 C 80 290, 200 300, 160 244" stroke="#335566" stroke-width="1.5" fill="none" marker-end="url(#a2)"/>
+            <text x="160" y="300" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#335566">③ 你把新状态存回 messages / agent，下轮再传</text>
+          </svg>
+          <figcaption>图 1-1：状态只属于调用者，在 <code>run()</code> 的"入参—返回值"之间往返；引擎本身不留底。</figcaption>
+        </figure>
+
+        <h2>四、这就是为什么循环里要"手动赋回"</h2>
+        <p>回到前置回顾里那段"啰嗦"的代码。现在你明白了：因为引擎不记账，所以<strong>记账的责任落在你身上</strong>。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/simple_loop_no_helpers.py（节选）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">messages = []
+agent = my_agent
+while True:
+    user_input = input("> ")
+    messages.append({"role": "user", "content": user_input})
+
+    response = client.run(agent=agent, messages=messages)
+    messages = response.messages   # ← 把"小票"更新好，否则下轮就失忆
+    agent = response.agent         # ← 记住可能已经交接过的当前 Agent
+    pretty_print_messages(messages)</code></pre>
+        </div>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：忘了赋回 = Agent 集体失忆</span>
+          <p>如果你写成 <code>client.run(agent=agent, messages=messages)</code> 却<strong>不</strong>把返回的 <code>response.messages</code> 赋回 <code>messages</code>，那么下一轮传进去的还是旧历史——LLM 完全不知道刚才聊过什么，每轮都像第一次见面。这是新手最常见的坑，根源就在于"状态归调用者维护"。</p>
+        </div>
+
+        <h2>五、无状态换来了什么，又要付出什么</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">无状态引擎 vs 有状态引擎</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">Swarm：无状态</div>
+              <ul>
+                <li><strong>可并发</strong>：同一个 <code>client</code> 能同时服务成千上万个互不干扰的对话（各自的 <code>messages</code> 分开存）。</li>
+                <li><strong>可重放/可测试</strong>：给定同样的入参就能复现同样的行为，评测（第10章）正是靠这一点。</li>
+                <li><strong>易横向扩展</strong>：引擎实例可随意增减、放到任意机器上，因为它不持有会话。</li>
+                <li>实现极简，核心才几百行。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">有状态引擎（把历史存在引擎里）</div>
+              <ul>
+                <li>调用方省事：不用自己维护 <code>messages</code>。</li>
+                <li>但<strong>并发困难</strong>：多个对话共用一个实例会串味，得为每个会话建实例或加锁。</li>
+                <li><strong>难测试/难重放</strong>：行为依赖引擎内部的隐藏状态。</li>
+                <li>扩展到多机时要处理"会话粘性"、状态同步等一堆麻烦。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>一句话：Swarm 把"维护状态"这点小麻烦推给了调用者，换来了并发、可测试、可扩展这些<strong>大好处</strong>。对一个定位教学、也想被认真使用的框架来说，这笔交易很划算。</p>
+
+        <details class="deepbox">
+          <summary>延伸：这和其他框架比怎么样？</summary>
+          <div class="deepbox-body">
+            <p>很多框架也走无状态路线，只是叫法不同。比如 <strong>OpenAI Agents SDK</strong> 用 <code>Runner.run(agent, input)</code> 返回结果，会话历史同样由调用方通过 <code>result.to_input_list()</code> 拼接后带入下一轮——思路和 Swarm 的"赋回 messages"如出一辙。<strong>LangGraph</strong> 则把状态显式建模成一个可持久化的 <code>State</code> 对象 + checkpointer，属于"把状态外置得更正式"的版本。</p>
+            <p>可见"引擎无状态、状态外置"几乎是现代 Agent 框架的共识。Swarm 只是把这个共识用最少的代码呈现了出来：状态就是两个普通变量 <code>messages</code> 和 <code>context_variables</code>，没有任何额外包装。</p>
+          </div>
+        </details>
+
+        <h2>可运行小实验：证明引擎真的"不记事"</h2>
+        <p>下面这段代码<strong>故意不把历史赋回</strong>，你会看到 Agent 每轮都失忆（需要 API Key 才能真跑；不跑也能从逻辑上理解）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>stateless_demo.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+agent = Agent(name="Agent", instructions="You are a helpful agent.")
+
+# 第一轮：告诉它我的名字
+r1 = client.run(agent=agent, messages=[{"role": "user", "content": "我叫小明，记住哦。"}])
+print("第一轮:", r1.messages[-1]["content"])
+
+# 第二轮：故意只传一句新话，不带上第一轮的历史
+r2 = client.run(agent=agent, messages=[{"role": "user", "content": "我叫什么名字？"}])
+print("第二轮:", r2.messages[-1]["content"])   # 它答不上来——因为引擎没记，我们也没传</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（措辞每次略有不同）</div>
+          <pre>第一轮: 好的，小明，我记住了！
+第二轮: 抱歉，我不知道你的名字，你还没有告诉我呢。</pre>
+        </div>
+        <p>把第二轮改成把 <code>r1.messages</code> 拼在前面再传，它立刻就"想起来"了。这就直观证明了：<strong>记忆不在引擎里，在你传的 <code>messages</code> 里。</strong></p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>那 context_variables 算不算引擎的状态？</summary>
+            <div class="faq-body">
+              <p>不算。它同样是<strong>调用者持有</strong>、通过参数传入、随 <code>Response</code> 传出的。引擎在一次 <code>run</code> 内部会用它、更新它，但 <code>run</code> 一结束，引擎就不再持有它——想留住得靠你把 <code>response.context_variables</code> 存下来。第 03 章会专门讲它的注入机制。</p>
+            </div>
+          </details>
+          <details>
+            <summary>无状态是不是意味着 Swarm 不能做"长期记忆"？</summary>
+            <div class="faq-body">
+              <p>恰恰相反，它把"长期记忆"这件事解放出来了。因为状态是普通的 <code>messages</code>/<code>context_variables</code>，你可以自由地把它们存进数据库、Redis、文件——想存多久存多久、想存哪存哪。引擎不插手，反而给了你最大的自由。第 08 章的数据库示例就是这种思路的延伸。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><code>Swarm</code> 实例上<strong>只有一个 <code>self.client</code></strong>，不保存任何对话状态——它是<strong>无状态</strong>的。</li>
+            <li>状态（<code>agent</code> / <code>messages</code> / <code>context_variables</code>）由<strong>调用者持有</strong>，在 <code>run()</code> 的入参与返回值之间往返。</li>
+            <li>所以交互循环里必须<strong>手动把 <code>response.messages</code>/<code>agent</code> 赋回</strong>，否则 Agent 会失忆。</li>
+            <li>这换来了<strong>可并发、可重放、可测试、易扩展</strong>，代价只是调用者多维护一点状态——很划算。</li>
+          </ul>
+          <p style="margin-bottom:0;">既然状态要在引擎内外传来传去，就带来一个新问题：<code>run()</code> 会不会不小心改坏你传进去的原始数据？下一章我们看它的防护措施——<code>deepcopy</code>。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-00.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">00 · 前言：从入门到深入</span>
+          </a>
+          <a class="next" href="chapter-02.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">02 · 深拷贝与副作用边界</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

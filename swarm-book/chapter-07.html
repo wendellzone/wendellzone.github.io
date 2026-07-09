@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>引擎核心：run 主循环 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第七章 · Chapter 07</div>
+          <div class="ch-bignum">07</div>
+          <h1>引擎核心：run 主循环</h1>
+          <p class="lede">前六章我们一直在说"Agent 有一个自动循环"。这个循环到底长什么样？就在 <code>core.py</code> 的 <code>run()</code> 里，短短四十行。<strong>这是整台发动机的心脏</strong>——读懂它，你就真正读懂了 Swarm。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>把第 01 章那句"Agent = 说明书 + 工具箱 + 自动循环"里的<strong>"自动循环"</strong>彻底拆开。</li>
+          <li>看清 <code>run()</code> 的<strong>五步主循环</strong>：问 LLM → 记录回复 → 判断是否点单 → 执行工具 → 回到开头。</li>
+          <li>用逐行精读的方式读懂 <code>run()</code> 每一行，尤其是那些"为什么这么写"的关键细节（深拷贝、切片、类型转换）。</li>
+          <li>顺带读懂两个帮手：<code>handle_tool_calls</code>（执行工具）和 <code>handle_function_result</code>（归一化返回值）。</li>
+        </ul>
+
+        <h2>一、回顾：我们要拆的到底是哪个"循环"</h2>
+        <p>第 01 章我们给 Agent 下过一个极简定义：</p>
+        <div class="callout tip">
+          <span class="callout-title">第 01 章的定义</span>
+          <p><strong>Agent = 一份岗位说明书（system prompt） + 一个工具箱（functions） + 一个自动循环（不停地"问 LLM → 执行工具 → 再问"）。</strong></p>
+        </div>
+        <p>前面几章我们分别讲清了说明书（instructions）、工具箱（functions）、上下文变量、交接。唯独那个"自动循环"，一直是个黑盒——我们只知道"它会自动多轮调用工具直到完成"，但从没看它内部怎么转。</p>
+        <p>本章就把这个黑盒撬开。它的真身，是 <code>swarm/core.py</code> 里一个叫 <code>run()</code> 的方法。你每次写 <code>client.run(agent=..., messages=...)</code>，进的就是这里。</p>
+
+        <h2>二、核心图：run() 的五步主循环</h2>
+        <p>先不看代码，先在脑子里建立整台发动机的运转画面。<code>run()</code> 本质是一个 <code>while</code> 循环，一圈一圈地转，每一圈干这五件事：</p>
+
+        <figure class="figure">
+          <svg width="760" height="560" viewBox="0 0 760 560" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="run 五步主循环流程图">
+            <defs>
+              <marker id="r1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="r2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 起点 -->
+            <rect x="280" y="20" width="200" height="44" rx="22" fill="#33556618" stroke="#335566"/>
+            <text x="380" y="47" text-anchor="middle" font-family="serif" font-size="14" fill="#335566">进入 run() · 记住起点</text>
+
+            <path d="M380 66 L380 94" stroke="#335566" stroke-width="2" marker-end="url(#r2)"/>
+
+            <!-- ① 问 LLM -->
+            <rect x="250" y="98" width="260" height="60" rx="12" fill="#E0913A18" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="380" y="122" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">① 问 LLM</text>
+            <text x="380" y="142" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#4A423A">带上 system + 全部 history</text>
+
+            <path d="M380 160 L380 186" stroke="#B96A1B" stroke-width="2" marker-end="url(#r1)"/>
+
+            <!-- ② 记录回复 -->
+            <rect x="250" y="190" width="260" height="60" rx="12" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="380" y="214" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">② 拿到回复 message</text>
+            <text x="380" y="234" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#4A423A">追加进 history</text>
+
+            <path d="M380 252 L380 278" stroke="#B96A1B" stroke-width="2" marker-end="url(#r1)"/>
+
+            <!-- ③ 判断 菱形 -->
+            <path d="M380 282 L500 342 L380 402 L260 342 Z" fill="#F3ECDF" stroke="#335566" stroke-width="1.5"/>
+            <text x="380" y="336" text-anchor="middle" font-family="serif" font-size="13" fill="#335566">③ 有 tool_calls 吗？</text>
+            <text x="380" y="356" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">（LLM 还想点单吗）</text>
+
+            <!-- 没有 -> break -->
+            <path d="M500 342 L636 342" stroke="#335566" stroke-width="2" marker-end="url(#r2)"/>
+            <text x="568" y="332" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#335566">没有 → break</text>
+            <rect x="640" y="316" width="104" height="52" rx="12" fill="#74B36B22" stroke="#74B36B"/>
+            <text x="692" y="340" text-anchor="middle" font-family="serif" font-size="13" fill="#3d7a35">结束</text>
+            <text x="692" y="357" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#3d7a35">return Response</text>
+
+            <!-- 有 -> ④ -->
+            <path d="M380 402 L380 430" stroke="#B96A1B" stroke-width="2" marker-end="url(#r1)"/>
+            <text x="398" y="420" font-family="sans-serif" font-size="11" fill="#B96A1B">有 ↓</text>
+
+            <!-- ④ 执行工具 -->
+            <rect x="230" y="434" width="300" height="66" rx="12" fill="#E0913A18" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="380" y="458" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">④ handle_tool_calls 执行工具</text>
+            <text x="380" y="478" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4A423A">可能更新 context_variables</text>
+            <text x="380" y="493" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4A423A">可能切换 active_agent（交接）</text>
+
+            <!-- ⑤ 回环 -->
+            <path d="M230 467 L120 467 L120 128 L246 128" stroke="#B96A1B" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#r1)"/>
+            <text x="90" y="300" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#B96A1B" transform="rotate(-90 90 300)">⑤ 工具结果并入 history，回到 ①</text>
+
+            <!-- 循环条件说明 -->
+            <rect x="540" y="440" width="204" height="70" rx="10" fill="#F3ECDF" stroke="#D3C4A8" stroke-dasharray="4 3"/>
+            <text x="642" y="463" text-anchor="middle" font-family="serif" font-size="12" fill="#1F1B16">循环护栏</text>
+            <text x="642" y="483" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">len(history)-init_len</text>
+            <text x="642" y="499" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">&lt; max_turns</text>
+          </svg>
+          <figcaption>图 7-1：<code>run()</code> 的五步主循环。核心是"问 LLM → 执行工具 → 再问"不停转圈，直到 LLM 不再点单（没有 tool_calls）就 break 结束；<code>max_turns</code> 是防止转不停的安全护栏。</figcaption>
+        </figure>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：厨房里的循环</span>
+          <p>还记得第 01 章"点菜"的比喻吗？<code>run()</code> 就是餐厅里那个不知疲倦的服务员：把顾客（LLM）的话传到厨房、催菜、上菜，然后回来问顾客"还要点什么吗？"。只要顾客还在点菜（还有 tool_calls），服务员就一直来回跑；顾客说"够了，这就是我的答案"（没有 tool_calls），服务员才停下。<code>max_turns</code> 则是餐厅打烊时间——再想点也不伺候了。</p>
+        </div>
+
+        <h2>三、逐行精读 <code>run()</code> 主体（非流式分支）</h2>
+        <p>下面是 <code>core.py</code> 中 <code>run()</code> 的核心部分（第 252–292 行，即 <code>stream=False</code> 的普通分支）。我们先看全貌，再用"左代码 / 右讲解"的方式逐段拆。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · run()（第 252-292 行）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">active_agent = agent
+context_variables = copy.deepcopy(context_variables)
+history = copy.deepcopy(messages)
+init_len = len(messages)
+
+while len(history) - init_len &lt; max_turns and active_agent:
+
+    # get completion with current history, agent
+    completion = self.get_chat_completion(
+        agent=active_agent,
+        history=history,
+        context_variables=context_variables,
+        model_override=model_override,
+        stream=stream,
+        debug=debug,
+    )
+    message = completion.choices[0].message
+    debug_print(debug, "Received completion:", message)
+    message.sender = active_agent.name
+    history.append(
+        json.loads(message.model_dump_json())
+    )  # to avoid OpenAI types (?)
+
+    if not message.tool_calls or not execute_tools:
+        debug_print(debug, "Ending turn.")
+        break
+
+    # handle function calls, updating context_variables, and switching agents
+    partial_response = self.handle_tool_calls(
+        message.tool_calls, active_agent.functions, context_variables, debug
+    )
+    history.extend(partial_response.messages)
+    context_variables.update(partial_response.context_variables)
+    if partial_response.agent:
+        active_agent = partial_response.agent
+
+return Response(
+    messages=history[init_len:],
+    agent=active_agent,
+    context_variables=context_variables,
+)</code></pre>
+        </div>
+
+        <h3>第一段：循环开始前的四行"准备工作"</h3>
+        <p>循环还没开始，先把四样东西准备好。这四行看似平平无奇，其实每一行都藏着"为什么必须这么写"的讲究。</p>
+
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">active_agent = agent</div>
+            <div class="lr-note"><b>记住"当前是谁在说话"。</b> <code>active_agent</code> 是整个循环里最重要的变量——它指向"此刻负责回答的 Agent"。一开始就是你传进来的那个 <code>agent</code>。发生交接（第 06 章）时，改的就是它。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">context_variables = copy.deepcopy(context_variables)</div>
+            <div class="lr-note"><b>深拷贝上下文变量，绝不污染调用者的原始数据。</b> 循环里会不断往 <code>context_variables</code> 里写东西（工具可以更新它）。如果不拷贝直接改，就会<strong>连带改掉调用者传进来的那个字典</strong>——调用者会莫名其妙发现自己的变量被 run() 偷偷改了。深拷贝 = 复印一份自己用，原件不动。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">history = copy.deepcopy(messages)</div>
+            <div class="lr-note"><b>同理，把消息列表也复印一份。</b> 循环里会疯狂往 <code>history</code> 追加消息（LLM 的回复、工具的结果……）。深拷贝保证调用者传进来的 <code>messages</code> 列表始终保持原样，不被 run() 撑大。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">init_len = len(messages)</div>
+            <div class="lr-note"><b>记住"起跑线"在哪。</b> 记下开局时消息有几条。循环结束后，我们只想把<strong>本次新产生的消息</strong>还给调用者，而不是把人家原来那几条也重复还回去。<code>init_len</code> 就是那把"从这里往后才是新增"的尺子（最后 <code>history[init_len:]</code> 会用到它）。</div>
+          </div>
+        </div>
+
+        <div class="callout warn">
+          <span class="callout-title">为什么两处都要 deepcopy？</span>
+          <p>核心原则：<strong>函数不该偷偷改掉调用者传进来的东西</strong>（这在编程里叫"避免副作用"）。<code>messages</code> 和 <code>context_variables</code> 都是可变对象（list / dict），Python 里直接赋值只是"起个别名"，改别名就是改原件。<code>copy.deepcopy</code> 才是真正复印一份。少了这两行，多次调用 run() 就会互相干扰，非常难排查。</p>
+        </div>
+
+        <h3>第二段：<code>while</code> 循环的"护栏"</h3>
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">while len(history) - init_len
+      &lt; max_turns and active_agent:</div>
+            <div class="lr-note"><b>循环的两个继续条件，缺一不可。</b><br>
+            ① <code>len(history) - init_len &lt; max_turns</code>：本轮已经新增了多少条消息？只要还没超过 <code>max_turns</code>（默认无穷大 <code>float("inf")</code>），就继续。这是防止 LLM 和工具"来回拉扯停不下来"的<strong>安全护栏</strong>。<br>
+            ② <code>and active_agent</code>：还得有一个"当前 Agent"在岗。如果某次交接把 <code>active_agent</code> 设成了 <code>None</code>，循环就自然停止。</div>
+          </div>
+        </div>
+
+        <h3>第三段：① 问 LLM，② 记录回复</h3>
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">completion = self.get_chat_completion(
+    agent=active_agent,
+    history=history,
+    ...
+)</div>
+            <div class="lr-note"><b>①问 LLM。</b> 把"当前 Agent"和"全部历史"交给 <code>get_chat_completion</code>，它内部会拼上 system 说明书、把工具箱转成 LLM 能懂的格式，然后真正发请求给 OpenAI。（这个帮手第四节细讲。）</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">message = completion.choices[0].message</div>
+            <div class="lr-note"><b>取出 LLM 这一轮回的那条消息。</b> OpenAI 的返回结构里，<code>choices[0].message</code> 就是模型说的话——可能是纯文本回答，也可能是"我要调用某某工具"。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">message.sender = active_agent.name</div>
+            <div class="lr-note"><b>盖个"这话是谁说的"的章。</b> 给消息加一个 <code>sender</code> 字段，标明是哪个 Agent 说的。多 Agent 交接时，这让你能在历史里分清哪句是英语 Agent、哪句是西语 Agent 说的。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">history.append(
+    json.loads(message.model_dump_json())
+)  # to avoid OpenAI types (?)</div>
+            <div class="lr-note"><b>②把回复追加进历史——但要先"洗成普通 dict"。</b> LLM 返回的 <code>message</code> 是一个 OpenAI 的特殊对象（带类型）。这里先 <code>model_dump_json()</code> 转成 JSON 字符串，再 <code>json.loads()</code> 变回<strong>朴素的 Python 字典</strong>。<br>为什么绕这一圈？<b>避免让 OpenAI 的专有类型"污染"我们的历史列表。</b> 历史里全是干净的 dict，后续处理、序列化、打印都方便，也不会绑死在某个库的类型上。</div>
+          </div>
+        </div>
+
+        <h3>第四段：③ 判断——LLM 还点单吗？</h3>
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">if not message.tool_calls
+   or not execute_tools:
+    debug_print(debug, "Ending turn.")
+    break</div>
+            <div class="lr-note"><b>③循环的"刹车"在这里。</b> 两种情况会 <code>break</code> 跳出循环：<br>
+            ① <code>not message.tool_calls</code>：LLM 这轮<strong>没有要调用任何工具</strong>——说明它已经给出了最终答案，活儿干完了，停。<br>
+            ② <code>not execute_tools</code>：调用方明确设了 <code>execute_tools=False</code>，表示"我不想让你真的执行工具"，那也停。<br>
+            <strong>这一句就是整个 Agent"知道什么时候该收工"的关键。</strong></div>
+          </div>
+        </div>
+
+        <h3>第五段：④ 执行工具，处理交接与上下文更新</h3>
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">partial_response = self.handle_tool_calls(
+    message.tool_calls,
+    active_agent.functions,
+    context_variables, debug
+)</div>
+            <div class="lr-note"><b>④真正执行 LLM 点的那些工具。</b> 把 LLM 要调的工具清单、当前 Agent 的工具箱、上下文变量都交给 <code>handle_tool_calls</code>。它会逐个执行工具，把结果打包成一个 <code>partial_response</code>（里面有：工具产生的消息、更新的上下文变量、以及可能的"要切换到哪个 Agent"）。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">history.extend(partial_response.messages)</div>
+            <div class="lr-note"><b>⑤把工具结果并入历史。</b> 工具跑出来的结果（role="tool" 的消息）追加到 <code>history</code>。下一圈再问 LLM 时，它就能看到"工具查到了什么"，从而组织下一步回答。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">context_variables.update(
+    partial_response.context_variables)</div>
+            <div class="lr-note"><b>合并上下文变量。</b> 如果工具更新了上下文变量（第 05 章），在这里合并进主 <code>context_variables</code>，供后续轮次使用。</div>
+          </div>
+          <div class="lr-row">
+            <div class="lr-code">if partial_response.agent:
+    active_agent = partial_response.agent</div>
+            <div class="lr-note"><b>交接切换（第 06 章的第三步！）。</b> 如果某个工具返回了一个 Agent，这里就把 <code>active_agent</code> 换成它。下一圈循环就由新 Agent 接手。<strong>这一句和第 06 章讲的"三步换人"是同一件事</strong>——现在你看到它在主循环里的确切位置了。</div>
+          </div>
+        </div>
+        <p>执行完这一段，循环回到 <code>while</code> 顶部，带着更新后的 history、context_variables、active_agent 再问 LLM 一轮——如此往复。</p>
+
+        <h3>第六段：循环结束，只把"新增的"还回去</h3>
+        <div class="lineread">
+          <div class="lr-row">
+            <div class="lr-code">return Response(
+    messages=history[init_len:],
+    agent=active_agent,
+    context_variables=context_variables,
+)</div>
+            <div class="lr-note"><b>打包结果返回。</b> 关键是 <code>history[init_len:]</code>——用开头记下的那把尺子 <code>init_len</code>，只切出<strong>本次新产生的消息</strong>还给调用者（调用者原来的消息就不重复给了）。同时把最终的 <code>active_agent</code>（可能已经交接过）和 <code>context_variables</code> 一并打包成 <code>Response</code> 返回。<br>这也解释了第 06 章为什么 <code>response.messages[-1]</code> 拿到的是新回复——因为 messages 只含新增部分。</div>
+          </div>
+        </div>
+
+        <div class="callout tip">
+          <span class="callout-title">一句话总括 run()</span>
+          <p>准备好 active_agent / history / context_variables → <strong>循环</strong>【问 LLM → 记录回复 → 没点单就 break → 否则执行工具、合并结果、可能换人】→ 把新增消息打包返回。四十行，一台完整的 Agent 引擎。</p>
+        </div>
+
+        <h2>四、两个关键帮手</h2>
+        <p><code>run()</code> 把"执行工具"和"归一化返回值"这两件脏活，分别交给了两个帮手函数。读懂它们，第 06 章的交接、第 05 章的上下文注入才算彻底闭环。</p>
+
+        <h3>帮手 A：<code>handle_tool_calls</code>（第 89-137 行）——真正跑工具的地方</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>core.py · handle_tool_calls</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def handle_tool_calls(self, tool_calls, functions, context_variables, debug) -&gt; Response:
+    function_map = {f.__name__: f for f in functions}   # 按函数名建一张"名字→函数"的字典
+    partial_response = Response(messages=[], agent=None, context_variables={})
+
+    for tool_call in tool_calls:                # LLM 可能一次点了好几个工具，逐个处理
+        name = tool_call.function.name
+        # handle missing tool case, skip to next tool
+        if name not in function_map:            # LLM 点了个不存在的工具？
+            debug_print(debug, f"Tool {name} not found in function map.")
+            partial_response.messages.append({  # 不崩溃！回一条"错误"消息，继续下一个
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "tool_name": name,
+                "content": f"Error: Tool {name} not found.",
+            })
+            continue
+        args = json.loads(tool_call.function.arguments)   # LLM 给的参数是 JSON 字符串，解析成 dict
+        debug_print(debug, f"Processing tool call: {name} with arguments {args}")
+
+        func = function_map[name]
+        # pass context_variables to agent functions
+        if __CTX_VARS_NAME__ in func.__code__.co_varnames:  # 这个函数需要 context_variables 吗？
+            args[__CTX_VARS_NAME__] = context_variables     # 需要就悄悄注入进去（第 05 章）
+        raw_result = function_map[name](**args)             # ★ 真正执行工具函数！
+
+        result: Result = self.handle_function_result(raw_result, debug)  # 把返回值归一化成 Result
+        partial_response.messages.append({      # 把工具结果作为一条 role="tool" 消息记下来
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "tool_name": name,
+            "content": result.value,
+        })
+        partial_response.context_variables.update(result.context_variables)
+        if result.agent:                        # 工具返回了 Agent？记下"要交接"（第 06 章第二步）
+            partial_response.agent = result.agent
+
+    return partial_response</code></pre>
+        </div>
+        <p>逐点说清这段的四个精彩设计：</p>
+        <ul>
+          <li><strong>先建一张"名字 → 函数"的地图</strong>（<code>function_map</code>）。LLM 点单时只会给函数<strong>名字</strong>（字符串），我们得靠这张地图找到对应的真函数。</li>
+          <li><strong>容错，不崩溃</strong>。如果 LLM 点了个根本不存在的工具（它偶尔会犯迷糊），代码不会报错崩掉，而是回一条 <code>"Error: Tool xxx not found."</code> 消息，然后 <code>continue</code> 处理下一个。这条错误消息会喂回给 LLM，它读到后通常会自我纠正。</li>
+          <li><strong>参数来自 LLM，需要解析</strong>。<code>tool_call.function.arguments</code> 是 LLM 生成的一段 JSON 字符串，<code>json.loads</code> 把它变成真正的参数字典 <code>args</code>，再用 <code>**args</code> 传给函数。</li>
+          <li><strong>悄悄注入 context_variables</strong>。如果工具函数的参数列表里有 <code>context_variables</code>，框架会自动把上下文塞进去——而这个参数对 LLM 是隐藏的（还记得 <code>get_chat_completion</code> 里把它从工具描述里 pop 掉了吗）。这就是第 05 章"上下文变量"能被工具用到的原理。</li>
+        </ul>
+
+        <div class="callout warn">
+          <span class="callout-title">工具是并行还是串行执行的？</span>
+          <p>这里是一个 <code>for tool_call in tool_calls:</code> 的<strong>串行 for 循环——按顺序一个接一个执行</strong>。那 <code>Agent</code> 上的 <code>parallel_tool_calls=True</code> 是什么意思？它只是<strong>允许 LLM 在一轮里一次性"点多个单"</strong>（返回多个 tool_calls），至于这些单子，框架仍然是老老实实按顺序挨个做的。所以"parallel"指的是"LLM 可以一次多点几样"，不是"我们同时开好几个线程跑工具"。</p>
+        </div>
+
+        <h3>帮手 B：<code>handle_function_result</code>（第 71-87 行）——把返回值"归一化"</h3>
+        <p>工具函数五花八门：有的返回字符串、有的返回数字、有的返回一个 Agent（交接）、有的直接返回一个 <code>Result</code> 对象。<code>handle_function_result</code> 的职责就是把这些统统"归一化"成同一种东西——<code>Result</code>，好让上层代码不用操心具体是哪种。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>core.py · handle_function_result</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def handle_function_result(self, result, debug) -&gt; Result:
+    match result:
+        case Result() as result:          # 情况一：本来就是 Result → 原样返回
+            return result
+
+        case Agent() as agent:            # 情况二：返回值是 Agent → 交接信号
+            return Result(
+                value=json.dumps({"assistant": agent.name}),  # value 里塞一句说明性文字
+                agent=agent,              # 把 Agent 记进 Result.agent
+            )
+        case _:                           # 情况三：其它（字符串/数字/...）
+            try:
+                return Result(value=str(result))   # 一律转成字符串塞进 value
+            except Exception as e:
+                error_message = f"Failed to cast response to string: {result}. ..."
+                debug_print(debug, error_message)
+                raise TypeError(error_message)</code></pre>
+        </div>
+        <p>三种情况看 <code>Result</code> 的三个字段（回顾第 03 章 <code>types.py</code>）就全懂了：<code>value</code>（字符串结果）、<code>agent</code>（要不要交接）、<code>context_variables</code>（要不要更新上下文）。</p>
+        <ul>
+          <li><strong>返回 Result</strong>：说明工具作者想精细控制（同时给结果、切 Agent、更新上下文），直接原样用。</li>
+          <li><strong>返回 Agent</strong>：识别为交接，把 Agent 装进 <code>Result.agent</code>——这正是第 06 章交接的"第一步"。</li>
+          <li><strong>返回其它</strong>：一律 <code>str(...)</code> 转成字符串当作普通数据。如果连字符串都转不成，就明确报错提示"请让工具返回字符串或 Result"。</li>
+        </ul>
+
+        <h2>五、可运行片段：亲眼看主循环转了几圈</h2>
+        <p>光看代码不过瘾，我们用 <code>debug=True</code> 让主循环"现出原形"。复用第 06 章的交接例子，加一个开关即可。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>run_debug.py · 打开调试看主循环</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+english_agent = Agent(name="English Agent", instructions="You only speak English.")
+spanish_agent = Agent(name="Spanish Agent", instructions="You only speak Spanish.")
+
+def transfer_to_spanish_agent():
+    """Transfer spanish speaking users immediately."""
+    return spanish_agent
+
+english_agent.functions.append(transfer_to_spanish_agent)
+
+messages = [{"role": "user", "content": "Hola. ¿Como estás?"}]
+
+# ★ 关键：debug=True，让 run() 把每一步都打印出来
+response = client.run(agent=english_agent, messages=messages, debug=True)
+
+print("\n=== 最终回复 ===")
+print(response.messages[-1]["content"])
+
+# 顺便看看：本次一共新增了几条消息（间接反映主循环转了几圈）
+print("\n本次新增消息条数：", len(response.messages))</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>终端 · 运行方式</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash">python run_debug.py</code></pre>
+        </div>
+
+        <div class="output-block">
+          <div class="out-label">预期输出（示意，时间戳与措辞每次略有不同）</div>
+          <pre>[调试] Getting chat completion for...: [{'role': 'system', ...}, {'role': 'user', 'content': 'Hola...'}]
+[调试] Received completion: ...tool_calls=[transfer_to_spanish_agent]...   ← 第 1 圈：英语 Agent 决定调转接工具
+[调试] Processing tool call: transfer_to_spanish_agent with arguments {}   ← 执行工具，返回 spanish_agent
+[调试] Getting chat completion for...: [..., {'role':'tool',...}]           ← 第 2 圈：已切到西语 Agent 再问 LLM
+[调试] Received completion: ...content='¡Hola! Estoy muy bien...'          ← 西语 Agent 给出最终回答，无 tool_calls
+[调试] Ending turn.                                                          ← 没有 tool_calls → break，循环结束
+
+=== 最终回复 ===
+¡Hola! Estoy muy bien, gracias. ¿Y tú?
+
+本次新增消息条数： 3</pre>
+        </div>
+
+        <p>透过调试输出，你能清清楚楚看到主循环转了<strong>两圈</strong>：第一圈英语 Agent 点了转接工具（有 tool_calls，不 break，去执行工具并交接）；第二圈西语 Agent 给出纯文本回答（没有 tool_calls，<code>break</code> 收工）。这就是 <code>run()</code> 在真实世界里的运转轨迹。</p>
+
+        <div class="callout tip">
+          <span class="callout-title">小实验：给循环设个"一圈就停"</span>
+          <p>把调用改成 <code>client.run(agent=english_agent, messages=messages, max_turns=1)</code>。<code>max_turns=1</code> 意味着"最多新增 1 条消息就停"。这时循环第一圈问完 LLM、追加了那条"要调用工具"的消息后，<code>len(history)-init_len</code> 就已经不小于 1 了，循环条件不满足，<strong>工具还没来得及执行、更没交接，就停了</strong>。你会看到最终回复不再是西班牙语——这个反例能让你对 <code>max_turns</code> 这道护栏印象深刻。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>run() 到底什么时候才停？</summary>
+            <div class="faq-body">
+              <p>有两种停法：</p>
+              <ul>
+                <li><strong>正常停（最常见）</strong>：某一圈 LLM 返回的消息里<strong>没有 tool_calls</strong>——它不想再调工具了，认为已经能给出最终答案。此时 <code>if not message.tool_calls: break</code> 生效，循环干净利落地结束。</li>
+                <li><strong>护栏停</strong>：新增消息数达到了 <code>max_turns</code>（默认无穷大，所以通常不触发），或者 <code>active_agent</code> 被交接成了 <code>None</code>。这是防止"LLM 和工具无限拉扯停不下来"的兜底。</li>
+              </ul>
+              <p>另外把 <code>execute_tools=False</code> 也会在第一次遇到 tool_calls 时立即 break（相当于"只问不做"）。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么进 run() 一开始就要对 messages 和 context_variables 做 deepcopy？</summary>
+            <div class="faq-body">
+              <p>因为循环内部会<strong>反复修改</strong>这两个东西（往 history 追加消息、往 context_variables 写值）。Python 里 list / dict 是"传引用"的：如果不复印，run() 的修改会直接改到<strong>调用者传进来的原始对象</strong>上。</p>
+              <p>后果很隐蔽：比如你写了个循环多次调用 <code>run()</code>，每次都传同一个 <code>messages</code> 列表——如果不 deepcopy，第一次 run 就把它撑大了，第二次的对话历史就全乱了。deepcopy 保证"我在自己的副本上折腾，绝不动你的原件"，这是良好函数设计的基本礼貌（无副作用）。</p>
+            </div>
+          </details>
+          <details>
+            <summary>LLM 一次点了 3 个工具，是同时并行跑，还是一个个来？</summary>
+            <div class="faq-body">
+              <p><strong>一个个串行来。</strong> <code>handle_tool_calls</code> 里是 <code>for tool_call in tool_calls:</code> 的普通 for 循环，按 LLM 给的顺序挨个执行，前一个跑完才跑下一个。</p>
+              <p>容易混淆的是 <code>Agent.parallel_tool_calls=True</code> 这个设置。它管的是<strong>"允不允许 LLM 在一轮里一次性点多个单"</strong>（即返回多个 tool_calls），跟"我们这边怎么执行"无关。所以：LLM 可以一次多点，但 Swarm 仍是顺序执行。如果某个工具很慢，会阻塞后面的工具。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么把 LLM 回复 <code>json.loads(message.model_dump_json())</code> 转来转去？直接 append 不行吗？</summary>
+            <div class="faq-body">
+              <p>直接 append 也能跑，但会让 <code>history</code> 里混进 OpenAI 库的<strong>特殊对象类型</strong>。作者的意图（看注释 <code>to avoid OpenAI types</code>）是：让历史列表里<strong>清一色都是朴素的 Python 字典</strong>。</p>
+              <p>好处有三：① 序列化/存盘/打印都简单；② 不把整个框架绑死在 OpenAI 的类型上，将来换别的模型客户端更容易；③ 和工具产生的那些手写 dict 消息（role="tool"）保持格式统一。这一"转圈"是用一点点性能换取历史结构的干净与可移植。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><code>run()</code> 就是第 01 章那句"自动循环"的真身，是整台 Swarm 发动机的心脏。</li>
+            <li>循环前的四行准备：<code>active_agent</code>（记住当前是谁）、<code>deepcopy</code> 两份（不污染调用者数据）、<code>init_len</code>（记住起跑线）。</li>
+            <li><strong>五步主循环</strong>：①问 LLM → ②回复追加进 history（先洗成普通 dict）→ ③没 tool_calls 就 break → ④ <code>handle_tool_calls</code> 执行工具（可能更新 context、可能交接）→ ⑤结果并入 history，回到①。<code>max_turns</code> 是防死循环的护栏。</li>
+            <li><code>handle_tool_calls</code> 串行执行工具：建名字→函数地图、容错跳过不存在的工具、解析 LLM 给的 JSON 参数、按需注入 context_variables、把结果记成 tool 消息、识别交接。</li>
+            <li><code>handle_function_result</code> 把工具五花八门的返回值归一化成 <code>Result</code>：是 Result 原样用、是 Agent 当交接、其它一律转字符串。</li>
+            <li>最后 <code>return Response(messages=history[init_len:], ...)</code>——只把本次新增的消息还给你。</li>
+          </ul>
+          <p style="margin-bottom:0;">发动机的心脏你已经彻底看清。下一章我们看它的"另一种转法"——<strong>流式输出</strong>：让回答像打字机一样一个字一个字冒出来，背后是 <code>run_and_stream</code> 在工作。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-06.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">06 · Agent 交接 handoff</span>
+          </a>
+          <a class="next" href="chapter-08.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">08 · 流式输出</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

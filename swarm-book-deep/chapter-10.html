@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>怎么给 Agent 做评测 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第十章 · Chapter 10</div>
+          <div class="ch-bignum">10</div>
+          <h1>怎么给 Agent 做评测</h1>
+          <p class="lede">改完一版 prompt，Agent 到底变好了还是变坏了？靠"手动聊两句感觉一下"是不行的。这一章看 <code>triage_agent</code> 和 <code>weather_agent</code> 的 <code>evals</code>：如何用一个隐藏参数 <code>execute_tools=False</code>，把 Agent 的"决策"变成可以写断言、可以自动跑的<strong>考卷</strong>。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解为什么 Agent 需要<strong>自动化评测</strong>，而不是靠手感。</li>
+          <li>掌握核心机制 <code>execute_tools=False</code>：只取 LLM 的<strong>意图</strong>，不真正执行工具。</li>
+          <li>学会两类断言：<strong>结构化断言</strong>（查调了哪个函数）与 <strong>LLM 裁判</strong>（判对话是否成功）。</li>
+          <li>看清两类断言各自的适用场景与代价。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版讲过 <code>run()</code> 的 <code>tool_calls</code>：LLM 想调用工具时，会先返回一条带 <code>tool_calls</code> 的消息（"我想调 <code>transfer_to_refunds</code>"），框架再去真正执行。第 05 章我们特意留过一个伏笔——<code>run()</code> 有个参数 <code>execute_tools</code>（<code>core.py</code> 第 275 行 <code>if not message.tool_calls or not execute_tools: break</code>）。这一章，这个伏笔终于要收了：<strong>评测的全部魔法，就藏在把它设成 <code>False</code> 上。</strong></p>
+
+        <h2>一、为什么 Agent 难评测</h2>
+        <div class="callout analogy">
+          <span class="callout-title">类比：给 Agent 出模拟考卷</span>
+          <p>传统函数好测：输入 <code>2</code>，输出必须是 <code>4</code>，一测一个准。可 Agent 背后是 LLM，<strong>同一句话每次回答的措辞都不同</strong>——你没法断言"输出必须一字不差等于某句话"。<br>
+          于是我们换个思路：不考"它答得一字不差吗"，而考"<strong>面对'我要退款'，它有没有做出正确的决策——去调那个转接到退款专员的工具？</strong>"。这就像考试不看你作文用词，只看你有没有选对答案（ABCD）。决策是<strong>可枚举、可断言</strong>的。</p>
+        </div>
+
+        <h2>二、核心机制：<code>execute_tools=False</code> 只取意图</h2>
+        <p>要考"决策对不对"，我们只需要拿到 LLM <strong>想调哪个工具</strong>，而<strong>不需要真的去执行</strong>它（真执行会退真钱、发真邮件，产生副作用）。<code>triage_agent/evals.py</code> 把这一步封装成一个小助手：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/triage_agent/evals.py · run_and_get_tool_calls</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def run_and_get_tool_calls(agent, query):
+    message = {"role": "user", "content": query}
+    response = client.run(
+        agent=agent,
+        messages=[message],
+        execute_tools=False,   # ← 关键：只让 LLM 决定调哪个工具，但不真执行
+    )
+    return response.messages[-1].get("tool_calls")</code></pre>
+        </div>
+        <p>逐行看它妙在哪：</p>
+        <ul>
+          <li><code>messages=[message]</code>：只喂一句待测的用户输入，不带任何历史，保证测的是"这句话触发的即时决策"。</li>
+          <li><code>execute_tools=False</code>：回到 <code>core.py</code> 第 275 行，<code>run()</code> 一旦拿到 LLM 的回复就 <code>break</code>，<strong>不进入执行工具那一步</strong>。所以没有任何真实副作用，快且安全。</li>
+          <li><code>response.messages[-1].get("tool_calls")</code>：取最后一条（即 LLM 那条）消息里的 <code>tool_calls</code>。这就是 LLM 的"答题卡"——它想调哪些工具、参数是什么。</li>
+        </ul>
+
+        <div class="callout tip">
+          <span class="callout-title">这正是"无状态 + 可重放"的红利</span>
+          <p>还记得第 01 章说的吗？Swarm 无状态、给定输入就能复现行为。<code>execute_tools=False</code> 能成立，正是因为 <code>run()</code> 不留副作用、可被反复安全调用——评测体系是建立在那条设计哲学之上的。</p>
+        </div>
+
+        <h2>三、结构化断言：查"调对了哪个函数"</h2>
+        <p>拿到答题卡后，断言就非常直接了。<code>triage_agent/evals.py</code> 用 <code>pytest</code> 的参数化把多个"题目→标准答案"一次性跑完：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/triage_agent/evals.py · 结构化断言</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">import pytest
+
+@pytest.mark.parametrize(
+    "query,function_name",
+    [
+        ("I want to make a refund!", "transfer_to_refunds"),
+        ("I want to talk to sales.", "transfer_to_sales"),
+    ],
+)
+def test_triage_agent_calls_correct_function(query, function_name):
+    tool_calls = run_and_get_tool_calls(triage_agent, query)
+
+    assert len(tool_calls) == 1                                  # 恰好点了 1 个工具
+    assert tool_calls[0]["function"]["name"] == function_name   # 而且点对了那一个</code></pre>
+        </div>
+        <p><code>@pytest.mark.parametrize</code> 会把列表里每一组 <code>(query, function_name)</code> 各跑一次，等价于写了好几个测试。两条断言分别卡住：</p>
+        <ul>
+          <li><code>len(tool_calls) == 1</code>——分诊 Agent 应该<strong>干脆地</strong>转接，不能一次点两个、也不能不点。</li>
+          <li><code>tool_calls[0]["function"]["name"] == function_name</code>——"我要退款"必须触发 <code>transfer_to_refunds</code>，转错专员就是 bug。</li>
+        </ul>
+
+        <h3>正反两面都要考：<code>weather_agent</code> 的双向测试</h3>
+        <p><code>weather_agent/evals.py</code> 更进一步，不仅测"<strong>该</strong>调工具时调了没"，还测"<strong>不该</strong>调工具时有没有克制住"：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/weather_agent/evals.py · 正向 + 反向</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python"># 正向：这些问法都应该触发 get_weather
+@pytest.mark.parametrize(
+    "query",
+    [
+        "What's the weather in NYC?",
+        "Tell me the weather in London.",
+        "Do I need an umbrella today? I'm in chicago.",
+    ],
+)
+def test_calls_weather_when_asked(query):
+    tool_calls = run_and_get_tool_calls(weather_agent, query)
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["function"]["name"] == "get_weather"
+
+
+# 反向：这些问题不该调用任何工具，LLM 直接答即可
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Who's the president of the United States?",
+        "What is the time right now?",
+        "Hi!",
+    ],
+)
+def test_does_not_call_weather_when_not_asked(query):
+    tool_calls = run_and_get_tool_calls(weather_agent, query)
+    assert not tool_calls   # 期望 None 或空列表</code></pre>
+        </div>
+        <p>反向测试常被忽略，却很关键：一个"见问题就乱调工具"的 Agent，和一个"该调不调"的 Agent，一样是坏的。<code>assert not tool_calls</code> 就是在守住"该沉住气时沉住气"。</p>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：LLM 有随机性，单次通过 ≠ 稳定</span>
+          <p>这类测试跑一次绿了，不代表它永远绿——同一句话，LLM 偶尔也会抽风调错。所以评测要<strong>多用例覆盖</strong>（参数化正是为此），关键场景甚至要<strong>多次采样</strong>看通过率，而不是把它当成传统单元测试那样"绿一次就一劳永逸"。</p>
+        </div>
+
+        <h2>四、LLM 当裁判：判"整段对话成没成功"</h2>
+        <p>结构化断言只能查"可编程判定"的东西（调了哪个函数）。但有些问题没法用代码断言，比如"<strong>这整段对话，Agent 到底有没有把用户的事办成？</strong>"——这需要"读懂对话"的能力。于是 Swarm 的示例请出另一个 LLM 来当<strong>裁判</strong>。</p>
+        <p>看 <code>evals_util.py</code>，它用 <a href="https://github.com/jxnl/instructor" target="_blank" rel="noopener">instructor</a> 库让 GPT-4o 输出<strong>结构化的判定结果</strong>（而不是一段自由文本）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/triage_agent/evals_util.py · LLM 裁判</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">import instructor
+from openai import OpenAI
+from pydantic import BaseModel
+
+__client = instructor.from_openai(OpenAI())   # 用 instructor 包一层 OpenAI
+
+class BoolEvalResult(BaseModel):   # 约定裁判必须返回这个结构
+    value: bool                    # 判定：成功 or 失败
+    reason: Optional[str]          # 附带理由（便于排查）
+
+def evaluate_with_llm_bool(instruction, data) -> BoolEvalResult:
+    eval_result, _ = __client.chat.completions.create_with_completion(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": instruction},   # 评分标准
+            {"role": "user", "content": data},             # 待评的数据（对话）
+        ],
+        response_model=BoolEvalResult,   # ← 强制 LLM 的输出符合这个 Pydantic 模型
+    )
+    return eval_result</code></pre>
+        </div>
+        <p>关键是 <code>response_model=BoolEvalResult</code>：<code>instructor</code> 会保证 GPT-4o 返回的东西<strong>刚好能装进 <code>BoolEvalResult</code></strong>——一个布尔值 + 理由。这样裁判的意见就变成了程序能直接 <code>if</code> 判断的 <code>result.value</code>，而不是一段还要人去解读的话。</p>
+        <p>有了这个裁判，就能评"对话是否达成目标"了：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/triage_agent/evals.py · 对话级评测</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">CONVERSATIONAL_EVAL_SYSTEM_PROMPT = """
+You will be provided with a conversation between a user and an agent, as well
+as a main goal for the conversation. Your goal is to evaluate, based on the
+conversation, if the agent achieves the main goal or not...
+"""
+
+def conversation_was_successful(messages) -> bool:
+    conversation = f"CONVERSATION: {json.dumps(messages)}"   # 把整段对话序列化
+    result: BoolEvalResult = evaluate_with_llm_bool(
+        CONVERSATIONAL_EVAL_SYSTEM_PROMPT, conversation
+    )
+    return result.value   # 裁判说成功了吗？
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        [
+            {"role": "user", "content": "Hello!"},
+            {"role": "assistant", "content": "Hi there! How can I assist you today?"},
+            {"role": "user", "content": "I want to make a refund."},
+            {"role": "tool", "tool_name": "transfer_to_refunds"},
+            {"role": "user", "content": "Thank you!"},
+            {"role": "assistant", "content": "You're welcome! Have a great day!"},
+        ],
+    ],
+)
+def test_conversation_is_successful(messages):
+    assert conversation_was_successful(messages) == True</code></pre>
+        </div>
+        <p>把整段对话（JSON）连同评分标准一起交给 GPT-4o，它读完给出 <code>True/False</code>。这就完成了"结构化断言够不着"的语义级评测。</p>
+
+        <h2>五、两类断言：分工与取舍</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">结构化断言 vs LLM 裁判</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">结构化断言（查函数名/数量）</div>
+              <ul>
+                <li><strong>快、确定、免费</strong>：纯代码判定，不调模型。</li>
+                <li>结果稳定可复现，适合放进 CI 天天跑。</li>
+                <li>局限：只能判"可编程"的事——调了哪个工具、几个、参数对不对；判不了"回答得好不好"。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">LLM 裁判（判语义/对话质量）</div>
+              <ul>
+                <li>能判"整段对话是否达成目标"这类<strong>语义问题</strong>。</li>
+                <li>代价：<strong>慢、花钱</strong>（每次评测都要调一次 GPT-4o）。</li>
+                <li>裁判本身也是 LLM，<strong>可能不稳</strong>——评分标准要写清楚，必要时多跑几次取共识。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>实战里两者<strong>配合用</strong>：能用结构化断言卡死的（"必须转接到退款"），就用便宜确定的结构化断言；只有语义质量这类卡不死的，才动用 LLM 裁判。</p>
+
+        <h2>把它画成一张图</h2>
+        <figure class="figure">
+          <svg width="760" height="360" viewBox="0 0 760 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agent 评测机制图">
+            <defs>
+              <marker id="e_h" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="e_s" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- query -->
+            <rect x="40" y="150" width="150" height="56" rx="10" fill="#33556615" stroke="#335566" stroke-width="1.5"/>
+            <text x="115" y="174" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">测试用例 query</text>
+            <text x="115" y="193" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">"I want a refund!"</text>
+
+            <!-- run execute_tools=False -->
+            <path d="M192 178 L268 178" stroke="#335566" stroke-width="2" marker-end="url(#e_s)"/>
+            <rect x="270" y="146" width="200" height="64" rx="10" fill="#E0913A18" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="370" y="170" text-anchor="middle" font-family="monospace" font-size="12" fill="#B96A1B">run(execute_tools=False)</text>
+            <text x="370" y="189" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">只取意图，不真执行工具</text>
+
+            <!-- 取 tool_calls -->
+            <path d="M472 178 L548 178" stroke="#335566" stroke-width="2" marker-end="url(#e_s)"/>
+            <rect x="550" y="150" width="170" height="56" rx="10" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="635" y="174" text-anchor="middle" font-family="monospace" font-size="11.5" fill="#B96A1B">tool_calls</text>
+            <text x="635" y="193" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">LLM 的"答题卡"</text>
+
+            <!-- 分两路 -->
+            <!-- 路1：结构化断言 -->
+            <path d="M635 208 L635 258" stroke="#335566" stroke-width="2" marker-end="url(#e_s)"/>
+            <rect x="410" y="262" width="330" height="76" rx="10" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="575" y="285" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">① 结构化断言（快·确定·免费）</text>
+            <text x="575" y="305" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">len(tool_calls)==1</text>
+            <text x="575" y="322" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">name == "transfer_to_refunds"</text>
+
+            <!-- 路2：LLM 裁判（从整段对话出发） -->
+            <rect x="40" y="262" width="330" height="76" rx="10" fill="#33556610" stroke="#335566"/>
+            <text x="205" y="285" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">② LLM 裁判（判语义·对话成功）</text>
+            <text x="205" y="305" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">instructor + GPT-4o</text>
+            <text x="205" y="322" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">→ BoolEvalResult(value, reason)</text>
+            <!-- 整段对话 → 裁判 -->
+            <path d="M115 208 L115 262" stroke="#335566" stroke-width="1.5" fill="none" marker-end="url(#e_s)"/>
+            <text x="115" y="238" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">整段对话 JSON</text>
+          </svg>
+          <figcaption>图 10-1：评测机制——先用 <code>execute_tools=False</code> 拿到 LLM 的意图（<code>tool_calls</code>），再分两路：结构化断言查函数名，LLM 裁判判对话质量。</figcaption>
+        </figure>
+
+        <h2>可运行片段</h2>
+        <div class="callout warn">
+          <span class="callout-title">运行前提</span>
+          <p>需要装 <code>pytest</code>（结构化断言部分）；LLM 裁判部分还需要 <code>instructor</code> 库和 OpenAI API Key。所有测试都会真调 LLM，故需联网+计费。只想读懂逻辑的话，不装也不影响理解。</p>
+        </div>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>终端 · 运行评测</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash"># 进入示例目录
+cd examples/triage_agent
+
+# 装依赖（pytest / instructor 等）
+pip install pytest instructor
+
+# 跑评测
+pytest evals.py -v</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（示意，具体条数视用例而定）</div>
+          <pre>evals.py::test_triage_agent_calls_correct_function[I want to make a refund!-transfer_to_refunds] PASSED
+evals.py::test_triage_agent_calls_correct_function[I want to talk to sales.-transfer_to_sales] PASSED
+evals.py::test_conversation_is_successful[messages0] PASSED
+
+======================= 3 passed in 6.2s =======================</pre>
+        </div>
+        <p>看到那一排 <code>PASSED</code>，你就有了一个客观的"回归护栏"：以后每改一版 prompt 或换一次模型，跑一遍就知道 Agent 的决策能力是变好了还是退步了——不再靠手感。</p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary><code>execute_tools=False</code> 会不会漏测"工具执行后"的问题？</summary>
+            <div class="faq-body">
+              <p>会。它只测"LLM 这一步的决策意图"，不测"工具真跑起来、结果喂回后 LLM 会怎么继续"。所以它适合评"路由/决策是否正确"这类单步问题；要评多轮执行后的最终效果，得让 <code>execute_tools</code> 保持默认的 <code>True</code>、跑完整对话，再用 LLM 裁判去判整段结果（正是本章第四节做的事）。两者互补。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么要用 <code>instructor</code>，直接读 GPT-4o 的文字回答不行吗？</summary>
+            <div class="faq-body">
+              <p>能读，但麻烦且脆弱。让 LLM 自由回一段话，你还得写正则/解析去判断它到底说"通过"还是"不通过"，措辞一变就可能解析错。<code>instructor</code> 用 Pydantic 模型（<code>BoolEvalResult</code>）<strong>强制</strong>它输出一个规整的 <code>{value, reason}</code>，你的代码直接 <code>result.value</code> 就行，稳得多。这其实和第 04 章 <code>function_to_json</code> 让 LLM 输出结构化工具调用是同一种思路——<strong>给 LLM 的输出套上 schema</strong>。</p>
+            </div>
+          </details>
+          <details>
+            <summary>这套评测能直接用在生产吗？</summary>
+            <div class="faq-body">
+              <p>它是很好的<strong>起点</strong>，但生产还需要更多：更大的用例集、对随机性做多次采样统计通过率、对成本/延迟设预算、把评测接进 CI 自动跑，等等。第 12 章会把"系统化评测"列进通往生产的路线图。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>Agent 输出不确定，评测的思路是考<strong>决策</strong>（调对工具了吗）而非考<strong>措辞</strong>。</li>
+            <li>核心机制 <code>execute_tools=False</code>：只取 LLM 的 <code>tool_calls</code> 意图，不产生真实副作用——这依赖 Swarm 无状态、可重放的设计。</li>
+            <li><strong>结构化断言</strong>（<code>len==1</code>、<code>name==期望</code>，含正/反向）快而确定；<strong>LLM 裁判</strong>（instructor + GPT-4o + <code>BoolEvalResult</code>）能判语义但慢且花钱，二者配合用。</li>
+            <li>有了评测，改 prompt/换模型就有了客观护栏，而不是靠手感。</li>
+          </ul>
+          <p style="margin-bottom:0;">实战篇到此结束——你已见过分诊编排、真实数据库、RAG、评测四种真实能力。第三部分，我们动手<strong>改造</strong> Swarm，甚至从零把它写一遍。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-09.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">09 · 让 Agent 会查资料（RAG）</span>
+          </a>
+          <a class="next" href="chapter-11.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">11 · 改造 Swarm 与 mini-Swarm</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

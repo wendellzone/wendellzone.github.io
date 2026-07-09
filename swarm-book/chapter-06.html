@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 交接 handoff · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第六章 · Chapter 06</div>
+          <div class="ch-bignum">06</div>
+          <h1>Agent 交接 handoff</h1>
+          <p class="lede">一个 Agent 搞不定？那就把活儿转给更专业的同事。本章拆开 Swarm 最优雅的设计——交接，不需要任何特殊 API，只要让一个普通工具函数 <code>return</code> 一个 Agent。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解什么是 <strong>handoff（交接）</strong>，以及它为什么是"蜂群协作"的关键。</li>
+          <li>逐行读懂 <code>agent_handoff.py</code>：两个 Agent + 一个"转接工具"。</li>
+          <li>搞懂框架内部靠哪三步，把"当前 Agent"从英语切换到西语。</li>
+          <li>记住核心设计之妙：<strong>交接 = 让普通工具函数返回一个 Agent 对象</strong>。</li>
+        </ul>
+
+        <h2>一、类比：前台的一次"转接电话"</h2>
+        <p>想象你打电话到一家跨国公司的客服。接起电话的是<strong>前台接线员</strong>。你一开口是西班牙语，前台听不太懂，于是他说："请稍等，我帮您转接西语专员。"——"咔哒"一声，电话被转到了会西班牙语的同事那里，接下来由这位专员和你继续对话。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：转接电话</span>
+          <p><strong>handoff（交接）</strong>就是这次"转接电话"。前台接线员 = 英语 Agent；西语专员 = 西语 Agent。前台发现"这活儿该转给专员"，就按下转接键，把你交给了对的人。<br>关键在于：<strong>通话没有中断，你之前说过的话专员也都听得到</strong>——只是从这一刻起，回你话的人换了。</p>
+        </div>
+
+        <p>在 Swarm 里，这一整套"转接"动作，写起来只需要一个普普通通的函数。我们这就来看真代码。</p>
+
+        <h2>二、前置概念：Agent 也能当"返回值"</h2>
+        <p>回顾第 04 章：Agent 有一个 <code>functions</code>（工具箱），里面装着一堆可以被 LLM "点单"调用的函数。以前我们的工具函数都是返回一个<strong>字符串</strong>（比如查到的天气"67°F"）。</p>
+        <p>本章的关键突破点是：<strong>工具函数还可以返回一个 Agent 对象</strong>。当框架发现"哦，这个工具返回的不是字符串，而是另一个 Agent"，它就明白了——"这是要交接！"于是它把"当前负责说话的 Agent"换成返回的那一个。就这么简单。</p>
+
+        <div class="callout tip">
+          <span class="callout-title">一句话记住</span>
+          <p>普通工具返回字符串 → 框架把它当"数据"喂回给 LLM。<br>工具返回 Agent → 框架把它当"交接指令"，切换当前 Agent。</p>
+        </div>
+
+        <h2>三、逐行精读 <code>agent_handoff.py</code></h2>
+        <p>这是 Swarm 官方示例里最短、也最能体现设计哲学的一个文件。我们一段段拆。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/agent_handoff.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+english_agent = Agent(
+    name="English Agent",
+    instructions="You only speak English.",
+)
+
+spanish_agent = Agent(
+    name="Spanish Agent",
+    instructions="You only speak Spanish.",
+)
+
+
+def transfer_to_spanish_agent():
+    """Transfer spanish speaking users immediately."""
+    return spanish_agent
+
+
+english_agent.functions.append(transfer_to_spanish_agent)
+
+messages = [{"role": "user", "content": "Hola. ¿Como estás?"}]
+response = client.run(agent=english_agent, messages=messages)
+
+print(response.messages[-1]["content"])</code></pre>
+        </div>
+
+        <p>下面逐块解释。</p>
+
+        <h3>① 造两个 Agent：英语专员、西语专员</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>两个 Agent</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">english_agent = Agent(
+    name="English Agent",          # 名字：英语 Agent
+    instructions="You only speak English.",   # 岗位说明书：你只说英语
+)
+
+spanish_agent = Agent(
+    name="Spanish Agent",          # 名字：西语 Agent
+    instructions="You only speak Spanish.",   # 岗位说明书：你只说西语
+)</code></pre>
+        </div>
+        <p>这里我们造了<strong>两个员工</strong>：一个只会说英语，一个只会说西语。它们的"人设"就写在 <code>instructions</code>（岗位说明书 / system prompt）里。目前它们互不相干，谁也不认识谁。</p>
+
+        <h3>② 关键：一个"返回 Agent"的转接工具</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>转接工具函数</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def transfer_to_spanish_agent():
+    """Transfer spanish speaking users immediately."""
+    return spanish_agent      # ← 注意！返回的是一个 Agent 对象，不是字符串</code></pre>
+        </div>
+        <p>这就是全场最关键的一行。<code>transfer_to_spanish_agent</code> 表面上是个普通函数，但它 <code>return</code> 的是 <code>spanish_agent</code> ——<strong>一个 Agent 对象</strong>。</p>
+        <p>还要特别留意函数的那句英文<strong>文档字符串（docstring）</strong>：<code>"Transfer spanish speaking users immediately."</code>（把说西语的用户立刻转接走）。这句话不是写给人看的注释——它会被 Swarm 提取出来，当作"这个工具是干嘛的"说明，<strong>发给 LLM 看</strong>。LLM 正是靠读懂这句话，才知道"遇到西语用户就该点这个工具"。</p>
+
+        <div class="callout warn">
+          <span class="callout-title">别小看 docstring</span>
+          <p>工具函数的 docstring 就是给 LLM 的"工具使用说明书"。写得越清楚，LLM 越知道什么时候该调用它。如果留空，LLM 就只能靠函数名瞎猜了。</p>
+        </div>
+
+        <h3>③ 把转接工具"装进"英语 Agent 的工具箱</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>装配工具</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">english_agent.functions.append(transfer_to_spanish_agent)</code></pre>
+        </div>
+        <p>还记得第 04 章说过，<code>Agent.functions</code> 是一个列表（工具箱）吗？这里我们把 <code>transfer_to_spanish_agent</code> 追加进<strong>英语 Agent</strong> 的工具箱。</p>
+        <p>于是英语 Agent 现在有了一个新本领：<em>"我可以把用户转接给西语专员。"</em> 注意西语 Agent 自己并没有这个工具——它只管说西语，不负责转接。</p>
+
+        <h3>④ 用西班牙语提问，看它怎么反应</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>发起对话</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">messages = [{"role": "user", "content": "Hola. ¿Como estás?"}]   # 用户用西语打招呼
+response = client.run(agent=english_agent, messages=messages)   # 从英语 Agent 起手
+
+print(response.messages[-1]["content"])   # 打印最后一条回复</code></pre>
+        </div>
+        <p>我们从<strong>英语 Agent</strong> 起手（<code>agent=english_agent</code>），但用户上来就是一句西班牙语 <em>"Hola. ¿Como estás?"</em>（你好，你好吗？）。</p>
+        <p>接下来发生的事，就是本章的高潮：英语 Agent 一看"这是西语，我说不了"，于是它<strong>调用了工具</strong> <code>transfer_to_spanish_agent()</code>，工具返回 <code>spanish_agent</code>，框架当场把"当前 Agent"切换成西语 Agent，由西语 Agent 用西班牙语回答用户。最后 <code>response.messages[-1]</code> 拿到的，就是<strong>西语 Agent 说的那句西班牙语</strong>。</p>
+
+        <h2>四、框架内部：三步完成"切换当前 Agent"</h2>
+        <p>你可能会好奇：我明明只是让函数 <code>return</code> 了一个 Agent，框架怎么就"自动切换"了？答案藏在 <code>core.py</code> 里，一共就三步。（下一章我们会把整个 <code>run()</code> 拆到骨头，这里先看和交接相关的三步。）</p>
+
+        <h3>第 1 步：识别"返回值是个 Agent" → 打包成 Result</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>core.py · handle_function_result</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def handle_function_result(self, result, debug) -&gt; Result:
+    match result:
+        case Result() as result:          # 如果本来就是 Result，原样返回
+            return result
+
+        case Agent() as agent:            # ★ 如果返回值是一个 Agent
+            return Result(
+                value=json.dumps({"assistant": agent.name}),  # 塞一条说明性文字
+                agent=agent,              # ★ 把这个 Agent 记在 Result.agent 里
+            )
+        case _:                           # 其它情况（字符串、数字……）
+            try:
+                return Result(value=str(result))   # 转成字符串塞进 value
+            except Exception as e:
+                ...</code></pre>
+        </div>
+        <p>Swarm 用 Python 的 <code>match</code> 语句给工具返回值"分类归一化"。当它匹配到 <code>case Agent()</code>——也就是我们的 <code>transfer_to_spanish_agent()</code> 返回了一个 Agent——它就构造一个 <code>Result</code> 对象，并把这个 Agent 塞进 <code>Result.agent</code> 字段。<strong>这一步等于给框架打了个标记："用户想切到这个 Agent。"</strong></p>
+
+        <h3>第 2 步：把这个"想切换的 Agent"往上传递</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>core.py · handle_tool_calls（节选）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">result: Result = self.handle_function_result(raw_result, debug)  # 拿到归一化的 Result
+partial_response.messages.append({ ... })     # 把结果作为一条 tool 消息记录下来
+partial_response.context_variables.update(result.context_variables)
+if result.agent:                              # ★ 如果 Result 里带着一个 Agent
+    partial_response.agent = result.agent     # ★ 就把它记到本轮的"待切换 Agent"</code></pre>
+        </div>
+        <p><code>handle_tool_calls</code> 负责真正执行工具。执行完拿到 <code>Result</code> 后，它检查 <code>if result.agent:</code>——如果这次工具调用带回了一个 Agent，就把它记录到 <code>partial_response.agent</code>，相当于把"要切换"的信号继续往主循环传。</p>
+
+        <h3>第 3 步：主循环真正换人</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>core.py · run（节选）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">partial_response = self.handle_tool_calls( ... )   # 执行工具，可能带回一个 Agent
+history.extend(partial_response.messages)          # 工具结果并入对话历史
+context_variables.update(partial_response.context_variables)
+if partial_response.agent:                         # ★ 如果本轮要切换
+    active_agent = partial_response.agent          # ★ 把"当前 Agent"换成新的！</code></pre>
+        </div>
+        <p><code>active_agent</code> 是主循环里那个"当前负责说话的 Agent"变量。这里一句 <code>active_agent = partial_response.agent</code>，就把它从英语 Agent 换成了西语 Agent。下一轮循环再问 LLM 时，用的就是<strong>西语 Agent 的说明书和工具箱</strong>了——转接完成！</p>
+
+        <div class="callout tip">
+          <span class="callout-title">设计之妙</span>
+          <p>整个交接<strong>没有任何专门的"handoff API"</strong>。框架只是约定："工具函数如果返回一个 Agent，就切过去。" 一个再普通不过的 <code>return</code>，配合上面三步串联，就实现了 Agent 之间的自由转接。少即是多，这就是 Swarm 的优雅所在。</p>
+        </div>
+
+        <h2>五、一张图看懂整个交接过程</h2>
+        <p>把上面文字连起来，就是下面这张流程图——用户的一句西语，如何一路触发 english_agent 调工具、工具返回 spanish_agent、active_agent 切换、最后由西语 Agent 回答。</p>
+
+        <figure class="figure">
+          <svg width="760" height="470" viewBox="0 0 760 470" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="handoff 交接流程示意图">
+            <defs>
+              <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="as" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 用户消息 -->
+            <rect x="30" y="30" width="200" height="60" rx="10" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="130" y="55" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#4A423A">用户（西班牙语）</text>
+            <text x="130" y="76" text-anchor="middle" font-family="monospace" font-size="12" fill="#335566">"Hola. ¿Como estás?"</text>
+
+            <!-- 箭头 down -->
+            <path d="M130 92 L130 128" stroke="#335566" stroke-width="2" marker-end="url(#as)"/>
+            <text x="146" y="114" font-family="sans-serif" font-size="11" fill="#8A7F72">① 交给起手 Agent</text>
+
+            <!-- english agent -->
+            <rect x="30" y="132" width="200" height="86" rx="12" fill="#E0913A18" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="130" y="158" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">english_agent</text>
+            <text x="130" y="180" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#4A423A">"我只会英语…这是西语，</text>
+            <text x="130" y="197" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#4A423A">该转接了！"</text>
+
+            <!-- 箭头 english -> tool -->
+            <path d="M234 175 L360 175" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#ah)"/>
+            <text x="300" y="166" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#B96A1B">② 调用工具</text>
+
+            <!-- tool -->
+            <rect x="364" y="140" width="220" height="70" rx="10" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="474" y="166" text-anchor="middle" font-family="monospace" font-size="12.5" fill="#B96A1B">transfer_to_spanish_agent()</text>
+            <text x="474" y="192" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#4A423A">return spanish_agent</text>
+
+            <!-- 箭头 tool -> switch -->
+            <path d="M474 214 L474 258" stroke="#B96A1B" stroke-width="2" marker-end="url(#ah)"/>
+            <text x="490" y="240" font-family="sans-serif" font-size="11" fill="#B96A1B">③ 返回值是 Agent</text>
+
+            <!-- switch box -->
+            <rect x="330" y="262" width="288" height="66" rx="10" fill="#33556615" stroke="#335566" stroke-dasharray="5 4"/>
+            <text x="474" y="286" text-anchor="middle" font-family="serif" font-size="13.5" fill="#335566">框架三步：识别 → 传递 → 换人</text>
+            <text x="474" y="308" text-anchor="middle" font-family="monospace" font-size="11.5" fill="#335566">active_agent = spanish_agent</text>
+
+            <!-- 箭头 switch -> spanish -->
+            <path d="M330 300 L234 300" stroke="#335566" stroke-width="2" marker-end="url(#as)"/>
+            <text x="290" y="290" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#335566">④ 切换当前 Agent</text>
+
+            <!-- spanish agent -->
+            <rect x="30" y="266" width="200" height="86" rx="12" fill="#B96A1B18" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="130" y="292" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">spanish_agent</text>
+            <text x="130" y="314" text-anchor="middle" font-family="sans-serif" font-size="11.5" fill="#4A423A">"由我接手，用西语回答"</text>
+            <text x="130" y="333" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">（对话历史全都在，没丢）</text>
+
+            <!-- 箭头 spanish -> answer -->
+            <path d="M130 356 L130 396" stroke="#B96A1B" stroke-width="2" marker-end="url(#ah)"/>
+            <text x="146" y="380" font-family="sans-serif" font-size="11" fill="#8A7F72">⑤ 用西语作答</text>
+
+            <!-- final answer -->
+            <rect x="30" y="400" width="590" height="50" rx="10" fill="#F2B44118" stroke="#E0913A"/>
+            <text x="55" y="422" font-family="monospace" font-size="11.5" fill="#B96A1B">assistant (Spanish Agent)</text>
+            <text x="55" y="440" font-family="sans-serif" font-size="12.5" fill="#4A423A">"¡Hola! Estoy bien, gracias. ¿Y tú?"</text>
+          </svg>
+          <figcaption>图 6-1：一次 handoff 交接的完整链路——从用户西语提问，到英语 Agent 调转接工具、框架切换当前 Agent，最终由西语 Agent 接手作答。</figcaption>
+        </figure>
+
+        <h2>六、可运行片段与预期输出</h2>
+        <p>把开头那个完整文件保存下来就能跑。运行前请确认已按第 00 章配好 <code>OPENAI_API_KEY</code>。</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>终端 · 运行方式</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash"># 进入示例目录
+cd examples/basic
+# 运行交接示例
+python agent_handoff.py</code></pre>
+        </div>
+
+        <div class="output-block">
+          <div class="out-label">预期输出</div>
+          <pre>¡Hola! Estoy muy bien, gracias por preguntar. ¿Y tú, cómo estás?</pre>
+        </div>
+
+        <p>注意：我们从<strong>英语 Agent</strong> 起手，最终却收到一句<strong>西班牙语</strong>回复。这就是交接成功的铁证——中途 active_agent 已经悄悄换成了西语 Agent。（每次运行 LLM 的具体措辞会略有不同，但一定是西班牙语。）</p>
+
+        <div class="callout tip">
+          <span class="callout-title">想亲眼看到"转接那一刻"？</span>
+          <p>把最后调用改成 <code>client.run(agent=english_agent, messages=messages, debug=True)</code>，加上 <code>debug=True</code>。运行时你会在终端看到框架打印出"正在调用工具 transfer_to_spanish_agent"这样的调试信息——那就是转接发生的瞬间。（<code>debug</code> 的更多细节留到第 07 章。）</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>工具返回一个 Agent，和返回一个字符串，到底有啥区别？</summary>
+            <div class="faq-body">
+              <p>区别全在框架怎么"解读"这个返回值：</p>
+              <ul>
+                <li><strong>返回字符串</strong>（比如 <code>"67°F"</code>）：框架把它当作"工具查到的数据"，作为一条 <code>role="tool"</code> 的消息喂回给<strong>当前这个 Agent</strong>，让它继续用这份数据组织回答。当前 Agent 不变。</li>
+                <li><strong>返回 Agent</strong>（比如 <code>return spanish_agent</code>）：框架在 <code>handle_function_result</code> 里识别出这是个 Agent，于是把 <code>active_agent</code> <strong>切换</strong>成它。从下一轮起，换人回答。</li>
+              </ul>
+              <p>一个是"给数据"，一个是"换人",这就是全部差别。</p>
+            </div>
+          </details>
+          <details>
+            <summary>交接之后，之前的对话历史还在吗？西语 Agent 看得到用户之前说的话吗？</summary>
+            <div class="faq-body">
+              <p><strong>历史是连续的，全都在，一条都不会丢。</strong> Swarm 内部只有<strong>一份</strong>对话历史 <code>history</code>，从头到尾不断往里追加消息。交接只是换了"当前负责说话的 Agent"（<code>active_agent</code> 变量），并不会清空或重置历史。</p>
+              <p>所以西语 Agent 接手后，能看到用户最初那句 <em>"Hola. ¿Como estás?"</em>，也能看到英语 Agent 调用转接工具的记录。就像转接电话——线路没断，专员能听到你之前说的话。这正是"无缝转接"的体验来源。</p>
+            </div>
+          </details>
+          <details>
+            <summary>转接是单向的吗？西语 Agent 能再转回英语 Agent 吗？</summary>
+            <div class="faq-body">
+              <p>完全可以，只要给西语 Agent 也装一个"转回英语"的工具即可，例如：</p>
+              <p><code>def transfer_back_to_english(): return english_agent</code>，然后 <code>spanish_agent.functions.append(transfer_back_to_english)</code>。</p>
+              <p>这样两个 Agent 就能互相转接。更进一步，你可以造一个"分诊台（triage）Agent"，让它掌握所有"转接到 X 专员"的工具，根据用户问题分派给不同专员——这就是构建多 Agent 系统的常见套路。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><strong>handoff（交接）</strong> = 把当前对话转交给另一个更合适的 Agent，就像前台把电话转接给专员。</li>
+            <li>实现交接<strong>不需要任何特殊 API</strong>：只要写一个普通工具函数，让它 <code>return</code> 一个 Agent 对象。</li>
+            <li>把这个转接工具用 <code>agent.functions.append(...)</code> 装进负责"起手"的 Agent，LLM 会在合适时机自己调用它。</li>
+            <li>框架靠三步完成切换：<code>handle_function_result</code> 识别出返回值是 Agent 并打包进 <code>Result.agent</code> → <code>handle_tool_calls</code> 传递到 <code>partial_response.agent</code> → <code>run()</code> 主循环 <code>active_agent = partial_response.agent</code> 真正换人。</li>
+            <li>对话历史全程连续，交接只是"换了回话的人"，用户之前说过的话新 Agent 都看得到。</li>
+          </ul>
+          <p style="margin-bottom:0;">我们已经反复提到那个"三步""主循环""active_agent"。下一章就是全书的心脏：把 <code>core.py</code> 的 <code>run()</code> 主循环彻底拆开，看清这台发动机到底怎么转。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-05.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">05 · 上下文变量</span>
+          </a>
+          <a class="next" href="chapter-07.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">07 · 引擎核心：run 主循环</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>改造 Swarm 与 mini-Swarm · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第十一章 · Chapter 11</div>
+          <div class="ch-bignum">11</div>
+          <h1>改造 Swarm 与 mini-Swarm</h1>
+          <p class="lede">读懂一份代码最硬的证据，是<strong>能把它改了、甚至能自己重写一遍</strong>。这一章我们不再只是阅读 Swarm，而是动手：给工具加中间件、换一个模型、最后<strong>从零手写一个约四十行的 mini-Swarm</strong>。写完你会发现——Agent 框架的内核，其实就这么点东西。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>用<strong>装饰器</strong>给工具函数加日志、重试、计时等"中间件"，体会"工具即普通函数"带来的可组合性。</li>
+          <li>理解 <code>Swarm(client=...)</code> 的<strong>鸭子类型</strong>约定，学会指向本地 Ollama / 兼容网关，<strong>换掉底层模型</strong>。</li>
+          <li>不 <code>import swarm</code>，<strong>从零写出一个能跑的 mini-Swarm</strong>，把 <code>core.py</code> 的 <code>run</code> 循环亲手复现一遍。</li>
+          <li>看清自己写循环时最容易踩的坑，以及"从原型到生产还差什么"。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>前面十章里，你已经把 Swarm 的内核拆得很细了：无状态引擎（第 01 章）、<code>deepcopy</code> 划出的副作用边界（第 02 章）、"工具就是带 docstring 的普通函数"（第 03 章）、"handoff 就是让工具返回一个 <code>Agent</code>"（第 04 章）、以及 <code>run()</code> 那个"问 LLM → 有没有工具调用 → 执行 → 追加结果 → 再问"的主循环（第 05 章）。这一章把这些认知<strong>反过来用</strong>：既然我懂了每一块，那我就能改它、能替换它、能重写它。</p>
+
+        <h2>一、给工具加"中间件"：因为工具只是普通函数</h2>
+        <p>回忆第 03 章的核心结论：Swarm 里的工具<strong>没有任何特殊基类、没有注册表、没有装饰器要求</strong>——它就是一个普通 Python 函数，靠 <code>function_to_json</code>（<code>util.py</code> 第 31–87 行）读它的签名和 docstring 生成给 LLM 的 schema。</p>
+        <p>这句"就是普通函数"有个立竿见影的好处：<strong>任何能作用在普通函数上的手段，都能作用在工具上</strong>。其中最顺手的就是<strong>装饰器</strong>。我们可以在不改动工具本身逻辑的前提下，给它包一层日志、重试、计时——也就是所谓的"中间件"。</p>
+
+        <h3>1.1 一个 <code>@with_logging</code> 装饰器</h3>
+        <p>先写一个最简单的：每次工具被调用时打印入参，返回时打印结果。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>middleware.py · 日志装饰器</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">import functools
+
+
+def with_logging(func):
+    """给工具函数加调用日志：打印入参与返回值。"""
+
+    @functools.wraps(func)                 # ← 关键：保留原函数的 __name__ 和 __doc__
+    def wrapper(*args, **kwargs):
+        print(f"[调用] {func.__name__}  参数={kwargs or args}")
+        result = func(*args, **kwargs)
+        print(f"[返回] {func.__name__} -> {result!r}")
+        return result
+
+    return wrapper</code></pre>
+        </div>
+        <div class="callout warn">
+          <span class="callout-title">为什么 <code>functools.wraps</code> 这里不是可选项？</span>
+          <p>Swarm 靠 <code>func.__name__</code> 建立"函数名 → 函数"的映射（<code>core.py</code> 第 96 行 <code>function_map = {f.__name__: f for f in functions}</code>），又靠 <code>func.__doc__</code> 生成工具描述（<code>util.py</code> 第 80 行）。如果你不加 <code>@functools.wraps</code>，包装后的函数名会变成 <code>"wrapper"</code>、docstring 会丢失——LLM 看到的工具全叫 <code>wrapper</code>，还没有说明，直接乱套。<strong>给 Swarm 工具写装饰器，<code>functools.wraps</code> 是必需的。</strong></p>
+        </div>
+
+        <h3>1.2 一个 <code>@with_retry</code> 装饰器</h3>
+        <p>再写一个带参数的：工具抛异常时自动重试若干次（真实世界里，工具常常要调外部 API，偶发失败很正常）。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>middleware.py · 重试装饰器</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">import time
+
+
+def with_retry(times=3, delay=0.5):
+    """失败自动重试。times 次都失败才把异常抛出去。"""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_err = None
+            for attempt in range(1, times + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:      # 生产里应收窄成具体异常类型
+                    last_err = e
+                    print(f"[重试] {func.__name__} 第 {attempt} 次失败：{e}")
+                    time.sleep(delay)
+            raise last_err                  # 重试用尽，把最后一次异常抛出
+
+        return wrapper
+
+    return decorator</code></pre>
+        </div>
+
+        <h3>1.3 把中间件叠在工具上</h3>
+        <p>装饰器可以像洋葱一样一层层叠。下面给一个"查天气"工具同时加上重试和日志，然后把它挂到 Agent 上——<strong>Swarm 那边完全不需要任何改动</strong>，它拿到的仍然是一个"名字对、docstring 对"的普通函数。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>use_middleware.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+from middleware import with_logging, with_retry
+
+
+@with_logging                 # 外层：记录每次调用
+@with_retry(times=3)          # 内层：失败先重试
+def get_weather(city: str):
+    """查询某个城市的天气。"""
+    # 假装这里在调一个偶尔抽风的外部 API
+    return f"{city} 今天晴，26℃"
+
+
+agent = Agent(
+    name="天气助手",
+    instructions="你是一个天气助手，需要时调用 get_weather。",
+    functions=[get_weather],  # ← 挂的是被装饰后的函数，Swarm 无感知
+)
+
+client = Swarm()
+resp = client.run(agent=agent,
+                  messages=[{"role": "user", "content": "北京天气怎么样？"}])
+print(resp.messages[-1]["content"])</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（需要 API Key 才能真跑；措辞略有不同）</div>
+          <pre>[调用] get_weather  参数={'city': '北京'}
+[返回] get_weather -> '北京 今天晴，26℃'
+北京今天天气晴朗，气温 26℃，适合出门～</pre>
+        </div>
+        <div class="callout tip">
+          <span class="callout-title">这就是"可组合性"的红利</span>
+          <p>因为 Swarm 没有给工具规定任何形态，工具就退化成了"最普通的函数"；而最普通的函数，正好能享受 Python 生态里所有现成的函数级工具——装饰器、<code>functools</code>、<code>contextlib</code>……<strong>不给约束，反而换来了最大的自由。</strong>这正是第 03 章"约定优于配置"哲学在改造场景下的回报。</p>
+        </div>
+
+        <h2>二、换一个模型：<code>Swarm(client=...)</code> 的鸭子类型约定</h2>
+        <p>很多人以为 Swarm 被"锁死"在 OpenAI 上。其实不然。再看一眼构造函数（<code>core.py</code> 第 27–30 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · __init__</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">class Swarm:
+    def __init__(self, client=None):
+        if not client:
+            client = OpenAI()
+        self.client = client       # ← 只是存下来，没有任何类型检查</code></pre>
+        </div>
+        <p>再看它<strong>唯一</strong>真正用到 <code>self.client</code> 的地方（<code>core.py</code> 第 69 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · get_chat_completion 的最后一行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        return self.client.chat.completions.create(**create_params)</code></pre>
+        </div>
+        <p>看清楚了：Swarm 对 <code>client</code> 的全部要求，就是它得有一条 <code>.chat.completions.create(...)</code> 的调用路径，并返回一个"长得像 OpenAI Chat Completions"的响应对象（能取 <code>.choices[0].message</code>）。它<strong>从不检查 <code>client</code> 到底是不是 <code>OpenAI</code> 类的实例</strong>——这就是 Python 的<strong>鸭子类型</strong>：只要走起来像鸭子、叫起来像鸭子，它就当你是鸭子。</p>
+
+        <h3>2.1 指向本地 Ollama / 兼容网关</h3>
+        <p>许多本地推理服务（如 Ollama）和第三方网关，都刻意提供了"兼容 OpenAI"的 HTTP 接口。于是你只要构造一个改了 <code>base_url</code> 的 <code>OpenAI</code> 客户端，塞给 Swarm 就行：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>use_local_model.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from openai import OpenAI
+from swarm import Swarm, Agent
+
+# 指向本地 Ollama 的 OpenAI 兼容端点
+local_client = OpenAI(
+    base_url="http://localhost:11434/v1",   # Ollama 的兼容接口
+    api_key="ollama",                        # 本地服务通常不校验，填个占位即可
+)
+
+client = Swarm(client=local_client)          # ← 把自定义 client 交给 Swarm
+
+agent = Agent(
+    name="本地助手",
+    model="llama3.1",                        # ← 用本地拉下来的模型名
+    instructions="你是一个跑在本地的小助手。",
+)
+
+resp = client.run(agent=agent,
+                  messages=[{"role": "user", "content": "用一句话介绍你自己。"}])
+print(resp.messages[-1]["content"])</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（需本地已运行 Ollama 并拉取对应模型；措辞随模型而异）</div>
+          <pre>我是一个运行在你本地机器上的小助手，不联网也能陪你聊天～</pre>
+        </div>
+        <p>注意 <code>agent.model</code>（<code>types.py</code> 第 16 行，默认 <code>"gpt-4o"</code>）这时要改成本地实际拥有的模型名——它会原样传进 <code>create_params["model"]</code>（<code>core.py</code> 第 59 行）。换模型这件事，在 Swarm 里几乎是<strong>零成本</strong>的：换 <code>client</code>、改 <code>model</code>，别的一行都不用动。</p>
+
+        <h3>2.2 灵活的另一面：隐式约定的脆弱</h3>
+        <p>鸭子类型让"换模型"变得极其轻巧，但这份轻巧是有代价的。</p>
+        <div class="tradeoff">
+          <div class="tradeoff-title">"隐式接口约定"的灵活 vs 脆弱</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">灵活：无需正式抽象层</div>
+              <ul>
+                <li>不必实现任何 <code>LLMProvider</code> 基类或适配器接口——<strong>凑齐一条方法路径就能用</strong>。</li>
+                <li>任何"兼容 OpenAI"的服务（本地、私有、代理网关）都能即插即用。</li>
+                <li>Swarm 核心因此不用背任何"多后端适配"的复杂度，保持了极简。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">脆弱：没有契约，出错在运行时</div>
+              <ul>
+                <li>兼容性<strong>没有任何静态保证</strong>——某个字段（如 <code>tool_calls</code>、<code>parallel_tool_calls</code>）不被支持，要到真跑起来才报错。</li>
+                <li>本地模型对 function calling 的支持参差不齐，工具调用可能<strong>时灵时不灵</strong>。</li>
+                <li>响应结构只要有一点点不像 OpenAI，<code>message.tool_calls</code>（<code>core.py</code> 第 275 行）这类访问就会崩。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>一句话：<strong>Swarm 用"约定"代替了"抽象层"。</strong>对一个教学与轻量使用为主的框架，这笔交易很值；但当你要接的模型离 OpenAI 越远，这份"隐式契约"就越可能在运行时给你惊吓。生产系统里，通常要在 Swarm 外面再包一层自己的"客户端适配 + 冒烟测试"来兜底。</p>
+
+        <h2>三、亲手写一个 mini-Swarm（本章高潮）</h2>
+        <p>现在来做最能证明"你真的懂了"的事：<strong>不 <code>import swarm</code>，只依赖 <code>openai</code> SDK，从零写一个能跑的极简版</strong>。目标是让你亲眼看到——<code>core.py</code> 里那个 <code>run</code> 循环，剥掉流式、<code>deepcopy</code>、<code>debug</code> 之后，骨架其实只有几十行。</p>
+
+        <figure class="figure">
+          <svg width="760" height="360" viewBox="0 0 760 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="mini-Swarm 循环骨架图">
+            <defs>
+              <marker id="mk" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="mk2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 入口 -->
+            <rect x="40" y="30" width="150" height="46" rx="10" fill="#33556618" stroke="#335566" stroke-width="1.5"/>
+            <text x="115" y="52" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">起点</text>
+            <text x="115" y="68" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">messages + active_agent</text>
+
+            <!-- 问 LLM -->
+            <rect x="300" y="26" width="180" height="54" rx="12" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="390" y="49" text-anchor="middle" font-family="serif" font-size="14" fill="#fff">① 问 LLM</text>
+            <text x="390" y="68" text-anchor="middle" font-family="monospace" font-size="10" fill="#fff">completions.create(tools=…)</text>
+
+            <!-- 判断 -->
+            <path d="M390 130 L470 168 L390 206 L310 168 Z" fill="#F2B44133" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="390" y="164" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">② 有 tool_calls？</text>
+            <text x="390" y="182" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">看 message.tool_calls</text>
+
+            <!-- 无 -> 返回 -->
+            <rect x="560" y="142" width="160" height="52" rx="10" fill="#74B36B22" stroke="#4E8F46" stroke-width="1.5"/>
+            <text x="640" y="164" text-anchor="middle" font-family="serif" font-size="13" fill="#2E5A2A">③ 返回最终答复</text>
+            <text x="640" y="182" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4E8F46">break，循环结束</text>
+
+            <!-- 执行工具 -->
+            <rect x="300" y="256" width="180" height="70" rx="12" fill="#B96A1B" stroke="#8A4E12" stroke-width="2"/>
+            <text x="390" y="280" text-anchor="middle" font-family="serif" font-size="13" fill="#fff">④ 逐个执行工具</text>
+            <text x="390" y="298" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">json.loads(arguments)</text>
+            <text x="390" y="314" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">结果若是 Agent → 切换</text>
+
+            <!-- 追加结果 -->
+            <rect x="40" y="256" width="180" height="70" rx="12" fill="#33556618" stroke="#335566" stroke-width="1.5"/>
+            <text x="130" y="284" text-anchor="middle" font-family="serif" font-size="13" fill="#1F1B16">⑤ 追加结果到 messages</text>
+            <text x="130" y="304" text-anchor="middle" font-family="monospace" font-size="9.5" fill="#335566">role=tool + tool_call_id</text>
+
+            <!-- 箭头：起点->问 -->
+            <path d="M192 53 L296 53" stroke="#335566" stroke-width="1.8" marker-end="url(#mk2)"/>
+            <!-- 问->判断 -->
+            <path d="M390 82 L390 126" stroke="#B96A1B" stroke-width="1.8" marker-end="url(#mk)"/>
+            <!-- 判断->无->返回 -->
+            <path d="M472 168 L556 168" stroke="#4E8F46" stroke-width="1.8" marker-end="url(#mk)"/>
+            <text x="514" y="158" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4E8F46">无</text>
+            <!-- 判断->有->执行 -->
+            <path d="M390 208 L390 252" stroke="#B96A1B" stroke-width="1.8" marker-end="url(#mk)"/>
+            <text x="410" y="234" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#B96A1B">有</text>
+            <!-- 执行->追加 -->
+            <path d="M298 291 L224 291" stroke="#335566" stroke-width="1.8" marker-end="url(#mk2)"/>
+            <!-- 追加->回到问（走最左侧车道折回，避开左列文字） -->
+            <path d="M40 291 L22 291 L22 53 L296 53" stroke="#335566" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#mk2)"/>
+            <text x="130" y="348" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#335566">⑥ 带着新结果，回到第 ① 步（循环）</text>
+          </svg>
+          <figcaption>图 11-1：mini-Swarm 的循环骨架——问 LLM → 判断有无工具调用 → 无则返回，有则执行工具（结果若是 Agent 就切换）→ 把结果追加回 messages → 回到开头。这正是 <code>core.py</code> 里 <code>run</code>（第 252–292 行）做的事的精简版。</figcaption>
+        </figure>
+
+        <h3>3.1 极简 Agent 与 function_to_schema</h3>
+        <p>先用 <code>dataclass</code> 定义一个只有三样东西的 Agent，再写一个简化版的"函数转 schema"（对照 <code>util.py</code> 的 <code>function_to_json</code>，我们只保留最常用的类型映射）。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>mini_swarm.py · 第 1 段：Agent 与 schema</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">import json
+import inspect
+from dataclasses import dataclass, field
+from openai import OpenAI
+
+
+@dataclass
+class Agent:
+    """极简 Agent：只有名字、系统提示、和一组工具函数。"""
+    name: str = "Agent"
+    instructions: str = "You are a helpful agent."
+    functions: list = field(default_factory=list)
+
+
+def function_to_schema(func) -> dict:
+    """把普通函数转成 OpenAI tools 需要的 JSON（对照 util.py 的简化版）。"""
+    type_map = {str: "string", int: "integer", float: "number", bool: "boolean"}
+    sig = inspect.signature(func)
+    properties, required = {}, []
+    for name, param in sig.parameters.items():
+        properties[name] = {"type": type_map.get(param.annotation, "string")}
+        if param.default is inspect.Parameter.empty:
+            required.append(name)
+    return {
+        "type": "function",
+        "function": {
+            "name": func.__name__,
+            "description": func.__doc__ or "",     # docstring 当描述
+            "parameters": {"type": "object",
+                           "properties": properties,
+                           "required": required},
+        },
+    }</code></pre>
+        </div>
+
+        <h3>3.2 核心：约四十行的 run 循环</h3>
+        <p>下面是全书的"手术台"——把 <code>core.py</code> 第 252–292 行的 <code>run</code>、第 89–137 行的 <code>handle_tool_calls</code>、第 71–87 行的 <code>handle_function_result</code>，压缩进一个函数里。逐行都有中文注释，请对照图 11-1 阅读。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>mini_swarm.py · 第 2 段：核心 run 循环</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">client = OpenAI()   # 想换本地模型？改成 OpenAI(base_url=..., api_key=...)
+
+
+def run(agent: Agent, messages: list, max_turns: int = 10):
+    active_agent = agent                        # 当前是谁在干活（可能中途被换）
+    messages = messages.copy()                  # 不改调用者的原始列表（对应 deepcopy）
+
+    for _ in range(max_turns):                  # 主循环护栏：最多转这么多圈
+        tools = [function_to_schema(f) for f in active_agent.functions]
+        func_map = {f.__name__: f for f in active_agent.functions}
+
+        # ① 问 LLM：带上系统提示 + 全部历史 + 可用工具
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": active_agent.instructions}]
+                     + messages,
+            tools=tools or None,
+        )
+        message = completion.choices[0].message
+        messages.append(message.model_dump())   # 把 LLM 这条回复追加进历史
+
+        # ② 没有工具调用 → 这就是最终答复，收工
+        if not message.tool_calls:
+            break
+
+        # ④ 有工具调用 → 逐个执行
+        for tool_call in message.tool_calls:
+            name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)   # 参数是 JSON 字符串！
+            result = func_map[name](**args)                   # 真正调用那个普通函数
+
+            # 工具返回的若是一个 Agent，就切换 active_agent（这就是 handoff！）
+            if isinstance(result, Agent):
+                active_agent = result
+                content = json.dumps({"assistant": result.name})
+            else:
+                content = str(result)
+
+            # ⑤ 把工具结果以 role=tool + 对应的 tool_call_id 追加回历史
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,     # 必须回填，让 LLM 知道对应哪次调用
+                "content": content,
+            })
+        # ⑥ 循环回到开头，带着新结果再问一次 LLM
+
+    return messages, active_agent               # 把新历史和最终 Agent 交还给调用者</code></pre>
+        </div>
+        <div class="callout note">
+          <span class="callout-title">对照真身：几乎一一对应</span>
+          <p>这四十行几乎能和 <code>core.py</code> 逐段对上：<code>active_agent = agent</code> 对应第 252 行；<code>while</code>/<code>for</code> 循环护栏对应第 257 行的 <code>len(history) - init_len &lt; max_turns</code>；"问 LLM"对应第 260–268 行的 <code>get_chat_completion</code>；"无 tool_calls 就 break"对应第 275–277 行；"逐个执行 + 追加 role=tool"对应 <code>handle_tool_calls</code> 第 100–132 行；"返回值是 Agent 就切换"对应第 76–80 行 + 第 285–286 行。真身多出来的，主要是流式、<code>deepcopy</code>、<code>debug</code>、以及把 <code>context_variables</code> 注入工具的那几行——都是"锦上添花"，不是骨架。</p>
+        </div>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：自己写循环时最常漏的两件事</span>
+          <p><strong>① 忘了用 <code>role=tool</code> + 正确的 <code>tool_call_id</code> 把工具结果追加回 <code>messages</code>。</strong>OpenAI 的协议要求：只要上一条 assistant 消息里出现了 <code>tool_calls</code>，下一步就<strong>必须</strong>为<strong>每一个</strong> <code>tool_call</code> 补上一条对应的 <code>role=tool</code> 消息（<code>tool_call_id</code> 要一一对上）。漏了、或 id 对不上，下一次 <code>create</code> 会直接报 400 错误；就算不报错，LLM 也收不到工具的结果，等于白调。<br>
+          <strong>② 忘了 <code>arguments</code> 是 JSON 字符串。</strong><code>tool_call.function.arguments</code> 是一个<strong>字符串</strong>（例如 <code>'{"city": "北京"}'</code>），不是 dict。必须先 <code>json.loads</code> 再 <code>**args</code> 展开，否则会把整个字符串当成一个位置参数传进去，直接 <code>TypeError</code>。Swarm 在 <code>core.py</code> 第 114 行替你做了这步。</p>
+        </div>
+
+        <h2>可运行片段：用 mini-Swarm 跑一个 get_weather</h2>
+        <p>把上面两段拼起来（<code>mini_swarm.py</code>），加一个工具和入口，就能跑了。需要 <code>pip install openai</code> 并设置 <code>OPENAI_API_KEY</code>。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>mini_swarm.py · 第 3 段：跑起来</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def get_weather(city: str):
+    """查询某个城市的天气。"""
+    return f"{city} 晴，26℃"
+
+
+if __name__ == "__main__":
+    agent = Agent(
+        name="天气助手",
+        instructions="你是天气助手，需要时调用 get_weather，并用中文自然作答。",
+        functions=[get_weather],
+    )
+    history, final_agent = run(
+        agent,
+        [{"role": "user", "content": "上海今天天气怎么样？"}],
+    )
+    print("最终 Agent：", final_agent.name)
+    print("最终答复：", history[-1]["content"])</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（需要 API Key；措辞每次略有不同）</div>
+          <pre>最终 Agent： 天气助手
+最终答复： 上海今天天气晴朗，气温 26℃，很适合出门～</pre>
+        </div>
+        <p>整个过程里发生了什么，可以顺着历史 <code>messages</code> 复盘：user 提问 → assistant 决定调用 <code>get_weather(city="上海")</code>（这条带 <code>tool_calls</code>）→ 我们执行工具、追加一条 <code>role=tool</code> 的结果 → 再问 LLM → 这次它不需要工具了，直接用中文作答（无 <code>tool_calls</code>，<code>break</code>）。<strong>你刚刚亲手复现了 Swarm 的一次完整 <code>run</code>。</strong></p>
+
+        <details class="deepbox">
+          <summary>延伸：mini-Swarm 想上生产，还差哪些东西？</summary>
+          <div class="deepbox-body">
+            <p>我们的四十行只是"骨架跑通"，离能扛真实流量还很远。至少还缺：</p>
+            <ul>
+              <li><strong>流式输出</strong>：真身用 <code>run_and_stream</code>（<code>core.py</code> 第 139–229 行）逐块 <code>yield</code>，我们完全省了。</li>
+              <li><strong>并发工具调用</strong>：LLM 可能一次返回多个 <code>tool_calls</code>，生产里往往要并发执行而非串行。</li>
+              <li><strong>超时与取消</strong>：工具卡住、模型不返回时的兜底。</li>
+              <li><strong>tracing / 可观测性</strong>：每一步的耗时、token、决策链路要能被追踪。</li>
+              <li><strong>结构化错误</strong>：工具不存在、参数非法、模型返回畸形——真身在 <code>core.py</code> 第 103–113 行、<code>util.py</code> 里都有兜底，我们统统省了。</li>
+              <li><strong>护栏（guardrails）</strong>：输入/输出的安全校验、越权工具的拦截。</li>
+            </ul>
+            <p>这份清单正好通向本书最后一章——<strong>第 12 章</strong>会把"从学习原型走向生产要补的能力"系统地铺开。</p>
+          </div>
+        </details>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>装饰器叠的顺序有讲究吗？<code>@with_logging</code> 在上还是 <code>@with_retry</code> 在上？</summary>
+            <div class="faq-body">
+              <p>有。装饰器<strong>从下往上</strong>包裹：最靠近函数的那个是最内层。本章示例里 <code>@with_retry</code> 在下（内层）、<code>@with_logging</code> 在上（外层），意味着"每次真正的调用尝试都在重试逻辑里，而日志只在最外层记一次入参/最终结果"。如果你想让每一次重试都打日志，就把 <code>@with_logging</code> 放到内层。顺序不同，语义不同——但因为都用了 <code>functools.wraps</code>，最外层暴露给 Swarm 的 <code>__name__</code>/<code>__doc__</code> 始终是原函数的，不受影响。</p>
+            </div>
+          </details>
+          <details>
+            <summary>换成本地模型后，工具调用不稳定，是我写错了吗？</summary>
+            <div class="faq-body">
+              <p>大概率不是你的锅。这正是本章第二节"隐式约定脆弱"那一面：function calling 的支持质量高度依赖<strong>具体模型</strong>。有些本地小模型对 <code>tools</code> 的遵循度很差，会该调工具时不调、或把参数拼错。排查顺序：先确认该模型官方声明支持 function calling；再用 <code>debug=True</code>（Swarm 真身支持）看它到底返回了什么；必要时把工具数量减到一个、把 <code>instructions</code> 写得更直白。这是模型能力问题，不是 Swarm 的问题。</p>
+            </div>
+          </details>
+          <details>
+            <summary>mini-Swarm 没处理 context_variables，会缺什么？</summary>
+            <div class="faq-body">
+              <p>会缺"把随身档案袋注入工具"的能力。真身在 <code>core.py</code> 第 120–121 行会检查工具函数签名里有没有名为 <code>context_variables</code> 的参数，有就自动把当前档案袋塞进去（第 03 章讲过这个约定）。我们的 mini 版为了聚焦主循环，把它省了——如果你想补上，只需在执行工具前判断 <code>"context_variables" in inspect.signature(func).parameters</code>，是就把它加进 <code>args</code>。这也是个很好的练习：亲手把这条约定加回去，你对第 03 章会理解得更深。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>工具就是普通函数，所以能用<strong>装饰器</strong>加日志/重试/计时等中间件——记得 <code>functools.wraps</code>，否则 <code>__name__</code>/<code>__doc__</code> 会丢，Swarm 就认不出工具了。</li>
+            <li><code>Swarm(client=...)</code> 只认<strong>鸭子类型</strong>：凑齐 <code>.chat.completions.create</code> 就能用，改 <code>base_url</code> 即可接本地 Ollama / 兼容网关，换模型近乎零成本；代价是没有正式抽象层，<strong>兼容性靠约定、出错在运行时</strong>。</li>
+            <li>约四十行就能写出能跑的 <strong>mini-Swarm</strong>，与 <code>core.py</code> 的 <code>run</code> 几乎逐段对应——Agent 框架的内核确实就这么点东西。</li>
+            <li>自己写循环最容易漏：<strong>用 <code>role=tool</code>+正确 <code>tool_call_id</code> 追加结果</strong>、以及 <strong><code>arguments</code> 要 <code>json.loads</code></strong>。</li>
+          </ul>
+          <p style="margin-bottom:0;">你已经会改它、会换它、会重写它了。最后一章，我们把"设计哲学 + 实战 + 改造"收成一张全景图，并给出一条从学习原型通往生产的路线。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-10.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">10 · 怎么给 Agent 做评测</span>
+          </a>
+          <a class="next" href="chapter-12.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">12 · 全景收束与生产路线图</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

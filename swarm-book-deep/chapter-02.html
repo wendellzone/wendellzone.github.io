@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>深拷贝与副作用边界 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第二章 · Chapter 02</div>
+          <div class="ch-bignum">02</div>
+          <h1>深拷贝与副作用边界</h1>
+          <p class="lede">上一章我们说清了"状态归调用者持有"。可引擎在算一轮的过程中，要不停地往历史里塞消息、往档案袋里写数据。它凭什么保证<strong>不弄脏你传进去的原始数据</strong>？答案藏在 <code>run()</code> 开头那三行毫不起眼的代码里。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>看懂 <code>run()</code> 开头的 <code>copy.deepcopy</code> 与 <code>init_len</code> 到底在防什么。</li>
+          <li>理解"副作用泄漏"是怎么发生的，以及深拷贝如何在入口处筑起一道隔离墙。</li>
+          <li>搞清 <code>init_len</code> 的记账作用：为什么返回的是 <code>history[init_len:]</code> 而不是整个 <code>history</code>。</li>
+          <li>掂量深拷贝的代价，并知道浅拷贝为什么在这里不够用。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版里你已经习惯了那个"手动赋回"的循环：<code>messages = response.messages</code>。上一章我们确认了引擎无状态——它不替你记历史。这就引出一个很自然的担忧：既然 <code>messages</code> 是你的原始 list，而引擎在一轮里要反复 <code>append</code>/<code>extend</code>，那它会不会<strong>直接在你的 list 上乱涂乱画</strong>？如果会，你就再也没法拿同一份干净的 <code>messages</code> 去做别的事了。Swarm 的答案是：不会——因为它进门第一件事就是"复印"。</p>
+
+        <h2>一、进门先复印：run() 的头三行</h2>
+        <p>先看 <code>run()</code> 非流式分支的开头（<code>core.py</code> 第 252–255 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · run 的开场三行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        active_agent = agent
+        context_variables = copy.deepcopy(context_variables)   # 第253行
+        history = copy.deepcopy(messages)                       # 第254行
+        init_len = len(messages)                                # 第255行</code></pre>
+        </div>
+        <p>逐行拆开看：</p>
+        <ul>
+          <li><strong>第 253 行</strong>：把调用者传进来的 <code>context_variables</code> 深拷贝一份，之后引擎读写的都是这份副本。你原来的 dict 一根汗毛都不会动。</li>
+          <li><strong>第 254 行</strong>：把 <code>messages</code> 深拷贝成 <code>history</code>。注意名字变了——<strong>从这行起，引擎内部只认 <code>history</code>，再也不碰你的 <code>messages</code></strong>。后面所有的 <code>history.append(...)</code>、<code>history.extend(...)</code> 落的都是副本。</li>
+          <li><strong>第 255 行</strong>：<code>init_len</code> 记下"起跑线"——你原来的历史有多长。这个数字后面要用来切出"本轮新增"的部分。</li>
+        </ul>
+        <p>流式分支 <code>run_and_stream</code> 里是<strong>一模一样</strong>的三行（<code>core.py</code> 第 150–152 行），可见这不是随手一写，而是刻意在两个入口都守住的边界。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：在复印件上批注，不弄脏原件</span>
+          <p>你把一份合同（<code>messages</code>）交给助理去处理。聪明的助理不会拿起红笔直接在<strong>你的原件</strong>上圈圈画画——他会先去复印一份，所有批注、补页都写在<strong>复印件</strong>上，最后只把"新增的那几页"还给你。你的原件始终干干净净，想再复印几份给别人处理都行。</p>
+          <p><code>copy.deepcopy</code> 就是那台复印机，<code>history</code> 就是复印件，而 <code>init_len</code> 记住了"原件到第几页为止"，好让助理最后只抽出新增页交回。</p>
+        </div>
+
+        <h2>二、不复印会怎样：副作用泄漏</h2>
+        <p>假设我们把第 254 行删掉，直接让引擎在你的 <code>messages</code> 上操作。看看会发生什么：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>假想：如果不深拷贝（错误示范）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">my_messages = [{"role": "user", "content": "你好"}]
+
+# 如果 run() 内部是 history = messages（同一个对象，不复印）
+# 那么引擎每次 history.append(...) 都等于在 my_messages 上 append
+
+client.run(agent=agent, messages=my_messages)
+
+# 我原本只想留一句干净的用户输入，结果……
+print(len(my_messages))   # 不再是 1，而是被塞进了 assistant 回复、tool 消息等一堆东西</code></pre>
+        </div>
+        <p>这就是<strong>副作用泄漏</strong>：函数偷偷改了调用者的输入对象。危害不止"变长"这么简单——如果你本来想拿这份 <code>my_messages</code> 作为一个"干净的起点"，分别跑三个不同的 Agent 做对比，一旦第一次 <code>run</code> 就把它污染了，后两次的起点就全变了。深拷贝把这种隐患从根上掐断：<strong>引擎的一切改动都发生在隔离墙内，墙外的原始数据永远是你交出去时的样子。</strong></p>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：以为 run() 会"就地帮你累积历史"</span>
+          <p>正因为有深拷贝，<code>run()</code> <strong>绝不会</strong>把新消息写回你传进去的那个 list。有人写完 <code>client.run(agent=agent, messages=messages)</code> 后，直接接着用 <code>messages</code>，以为里面已经有了 Agent 的回复——结果 <code>messages</code> 还是老样子，Agent 说了什么一句都没进去。<strong>要拿到本轮结果，唯一的办法是用返回值</strong>：<code>messages = response.messages</code>（或 <code>messages.extend(response.messages)</code>）。这正好呼应第 01 章"状态归调用者维护"——深拷贝是这条原则在实现层的兑现。</p>
+        </div>
+
+        <h2>三、init_len：只把"新增的"还给你</h2>
+        <p>引擎在副本 <code>history</code> 上忙活完，结尾要打包 <code>Response</code>（<code>core.py</code> 第 288–292 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · 只返回本轮新增</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">        return Response(
+            messages=history[init_len:],          # 从起跑线之后切出来 —— 只有本轮新产生的
+            agent=active_agent,
+            context_variables=context_variables,
+        )</code></pre>
+        </div>
+        <p>关键就是 <code>history[init_len:]</code> 这个切片。<code>history</code> 里此刻装着"你原来的历史 + 本轮新增的消息"，而 <code>init_len</code> 正好是原来历史的长度。切片 <code>[init_len:]</code> 跳过了前面那段旧的，<strong>只把本轮真正新产生的消息交回给你</strong>。</p>
+        <p>为什么这么设计？因为如果返回整个 <code>history</code>，那你原来传进去的历史会被<strong>原样再返回一遍</strong>。你若写 <code>messages = response.messages</code> 或许没事，但你若写 <code>messages.extend(response.messages)</code>（很常见的累积写法），旧历史就会被重复追加一次——越滚越长、内容重复。返回"仅增量"让两种写法都安全，也让调用方对"这一轮到底新增了什么"一目了然。</p>
+
+        <figure class="figure">
+          <svg width="760" height="360" viewBox="0 0 760 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="深拷贝隔离墙示意图">
+            <defs>
+              <marker id="ar1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="ar2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 左：调用者原始数据 -->
+            <rect x="30" y="70" width="210" height="150" rx="14" fill="#F3ECDF" stroke="#D3C4A8" stroke-width="1.5"/>
+            <text x="135" y="96" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">调用者的原件</text>
+            <rect x="52" y="112" width="166" height="30" rx="6" fill="#E0913A20" stroke="#B96A1B"/>
+            <text x="135" y="132" text-anchor="middle" font-family="monospace" font-size="11.5" fill="#B96A1B">messages（原始）</text>
+            <rect x="52" y="150" width="166" height="30" rx="6" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="135" y="170" text-anchor="middle" font-family="monospace" font-size="11.5" fill="#B96A1B">context_variables</text>
+            <text x="135" y="204" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#74B36B">始终保持干净 ✓</text>
+
+            <!-- 中：隔离墙 -->
+            <line x1="330" y1="40" x2="330" y2="286" stroke="#8A4E12" stroke-width="2.5" stroke-dasharray="7 6"/>
+            <text x="330" y="30" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#8A4E12">隔离墙 = deepcopy</text>
+
+            <!-- 复印箭头 -->
+            <path d="M244 150 L410 150" stroke="#335566" stroke-width="2" marker-end="url(#ar2)"/>
+            <text x="327" y="140" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#335566">① 进门复印一份</text>
+
+            <!-- 右：引擎内部副本 -->
+            <rect x="420" y="60" width="310" height="200" rx="14" fill="#E0913A10" stroke="#B96A1B" stroke-width="1.5"/>
+            <text x="575" y="86" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">run 内部的副本（可随意涂改）</text>
+            <rect x="442" y="104" width="266" height="30" rx="6" fill="#fff" stroke="#B96A1B"/>
+            <text x="575" y="124" text-anchor="middle" font-family="monospace" font-size="11" fill="#8A4E12">history = deepcopy(messages)</text>
+            <rect x="442" y="142" width="266" height="26" rx="6" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="575" y="159" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">↑ 起跑线 init_len = len(messages)</text>
+            <rect x="442" y="176" width="266" height="26" rx="6" fill="#74B36B22" stroke="#74B36B"/>
+            <text x="575" y="193" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#4a7a44">本轮新增（append / extend 都落在这里）</text>
+            <text x="575" y="228" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">引擎的所有改动都在墙内发生</text>
+
+            <!-- 返回箭头（只交回增量） -->
+            <path d="M575 262 C 575 305, 135 305, 135 224" stroke="#B96A1B" stroke-width="2" fill="none" marker-end="url(#ar1)"/>
+            <text x="355" y="322" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#B96A1B">② 只把 history[init_len:]（本轮新增）交回</text>
+          </svg>
+          <figcaption>图 2-1：<code>deepcopy</code> 在入口处筑起一道隔离墙；引擎只在墙内的副本上工作，返回时凭 <code>init_len</code> 切出本轮新增交还给你，原件毫发无伤。</figcaption>
+        </figure>
+
+        <h2>四、这道边界值不值：深拷贝的取舍</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">入口深拷贝 vs 直接原地修改</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">Swarm：进门深拷贝</div>
+              <ul>
+                <li><strong>零副作用</strong>：无论引擎内部怎么折腾，调用者的原始 <code>messages</code>/<code>context_variables</code> 永不被改。</li>
+                <li><strong>可复用同一份输入</strong>：拿同一份干净的 <code>messages</code> 连跑多个 Agent、多次 <code>run</code> 做对比，互不干扰——评测（第10章）就靠这个。</li>
+                <li><strong>行为可预测</strong>：调用方不必背"这个函数会不会偷改我的参数"这种心智负担。</li>
+                <li>与第01章的无状态一脉相承：状态进出干净利落。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">直接在传入对象上原地改</div>
+              <ul>
+                <li>省内存、省一次拷贝，历史很长时更快。</li>
+                <li>但会<strong>污染调用者数据</strong>：你的原始 list 被塞满，再想复用就得自己先备份。</li>
+                <li>难以"拿同一起点跑多次"——第一次跑完起点就变了。</li>
+                <li>隐式副作用是 bug 温床，调用方稍不留神就中招。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>代价确实存在：历史特别长时，每轮 <code>run</code> 都全量深拷贝一次会有内存和时间开销。但对 Swarm 的教学与轻量定位而言，<strong>"绝不坑调用者"的确定性远比这点开销重要</strong>。真要优化，也可以在调用层控制单次传入的历史长度，而不是让引擎去冒污染数据的风险。</p>
+
+        <h2>可读片段：亲眼看它没改你的原件</h2>
+        <p>下面这段不需要联网也能理解其逻辑（真跑需要 API Key）。重点看两次 <code>len(messages)</code> 的对比：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>deepcopy_demo.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+agent = Agent(name="Agent", instructions="You are a helpful agent.")
+
+messages = [{"role": "user", "content": "讲个冷笑话"}]
+print("run 之前，messages 长度：", len(messages))
+
+response = client.run(agent=agent, messages=messages)
+
+print("run 之后，原始 messages 长度：", len(messages))      # 仍然是 1，没被改
+print("response.messages 长度：", len(response.messages))    # 本轮新增（至少 1 条 assistant 回复）
+print("原始 messages 内容原封不动：", messages[0]["content"])</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（回复文字每次不同）</div>
+          <pre>run 之前，messages 长度： 1
+run 之后，原始 messages 长度： 1
+response.messages 长度： 1
+原始 messages 内容原封不动： 讲个冷笑话</pre>
+        </div>
+        <p>"run 之后原始 messages 长度还是 1"——这就是深拷贝在起作用：引擎往副本里塞了回复，却<strong>没动你的原件</strong>。要累积历史，你得自己 <code>messages = response.messages</code> 或 <code>messages += response.messages</code>。</p>
+
+        <details class="deepbox">
+          <summary>延伸：为什么是深拷贝，浅拷贝为什么不够？</summary>
+          <div class="deepbox-body">
+            <p>浅拷贝（<code>list(messages)</code> 或 <code>copy.copy</code>）只复制<strong>最外层</strong>的容器：新 list 是新的，但里面的每个元素（每条消息 dict）还是<strong>原来那些对象的引用</strong>。这意味着：<code>history.append(新消息)</code> 确实不会影响原 list 的长度（外层是独立的），但如果引擎去<strong>修改某条已有消息内部的字段</strong>（比如往一条消息 dict 里写个键），那改动会顺着共享引用泄漏回你的原始 <code>messages</code> 里的那条 dict。<code>context_variables</code> 更明显——它常是嵌套 dict，浅拷贝下内层 dict 仍被共享，引擎一 <code>update</code> 嵌套结构就漏出去了。</p>
+            <p><code>deepcopy</code> 则递归复制到底，连最里层的 dict/list 都是全新对象，彻底断开一切共享引用。这也是"隔离墙"能真正隔离的前提。</p>
+            <p>顺带一提：这种"进门先拿一份不可变/独立的快照，改动只作用于快照，最后交回新状态"的思路，和很多生产框架里的<strong>不可变状态（immutable state）/ State 快照</strong>设计是同一种精神——把"谁能改什么、改动波及范围"约束得清清楚楚。Swarm 用一行 <code>deepcopy</code> 就把这个理念落了地。</p>
+          </div>
+        </details>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>每轮都深拷贝整个历史，长对话不会很慢吗？</summary>
+            <div class="faq-body">
+              <p>会有开销，但通常不是瓶颈——真正的耗时大头在网络往返和 LLM 推理，深拷贝一个消息 list 的成本相比之下微乎其微。而且深拷贝只在每次 <code>run()</code> <strong>入口</strong>发生一次，不是每条消息都拷。如果你的历史确实巨大（几千条），更好的做法是在调用层做"历史裁剪/摘要"再传入，而不是让引擎放弃隔离保护。</p>
+            </div>
+          </details>
+          <details>
+            <summary>context_variables 也被深拷贝了，那我的更新怎么拿回来？</summary>
+            <div class="faq-body">
+              <p>靠返回值。引擎在副本上 <code>update</code>，最后通过 <code>Response.context_variables</code> 把<strong>更新后的副本</strong>交还给你。你的原始 dict 没变，但 <code>response.context_variables</code> 里是最新的。想留住就 <code>context_variables = response.context_variables</code>。这和 <code>messages</code> 的处理是同一套逻辑——进来复印、出去交回。第 03 章会讲这个"档案袋"是怎么被注入到工具和 instructions 里的。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><code>run()</code> 一进门就 <code>copy.deepcopy</code> 了 <code>context_variables</code> 和 <code>messages</code>（第 253–254 行），流式分支同样如此（第 150–151 行）——引擎只在<strong>副本</strong>上工作。</li>
+            <li>这道<strong>深拷贝隔离墙</strong>杜绝了副作用泄漏：你的原始数据永远保持干净、可复用。</li>
+            <li><code>init_len</code>（第 255 行）记住起跑线，结尾 <code>history[init_len:]</code> <strong>只返回本轮新增</strong>，避免旧历史被重复交回。</li>
+            <li>代价是长历史时的拷贝开销，但换来"绝不坑调用者"的确定性，对教学与轻量框架很划算。</li>
+          </ul>
+          <p style="margin-bottom:0;">数据边界守好了，下一个问题是：那个被小心翼翼深拷贝的 <code>context_variables</code>，究竟是怎么"魔法般"流进 instructions 和工具函数、又对 LLM 隐身的？下一章我们拆开这套"约定优于配置"的注入机制。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-01.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">01 · 无状态设计</span>
+          </a>
+          <a class="next" href="chapter-03.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">03 · 约定优于配置</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

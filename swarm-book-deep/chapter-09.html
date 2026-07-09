@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>让 Agent 会查资料（RAG） · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第九章 · Chapter 09</div>
+          <div class="ch-bignum">09</div>
+          <h1>让 Agent 会查资料（RAG）</h1>
+          <p class="lede">上一章的 Agent 学会了读写数据库——可数据库里装的是<strong>结构化的行和列</strong>（订单、价格、用户）。但如果用户问的是"GPT-4 支持多长上下文？""怎么申请退款？"这类<strong>知识型</strong>问题呢？答案不在某张表的某个字段里，而散落在成百上千篇帮助文档中。这一章我们看 <code>support_bot</code>：它会<strong>先去一堆文档里翻出最相关的几段，再拿着这些段落作答</strong>。这个"先查资料再回答"的套路，就是当下最重要的 Agent 增强手法——<strong>RAG（检索增强生成）</strong>。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>理解 <strong>RAG（检索增强生成）</strong>到底在做什么，以及它为什么能治"LLM 编造 / 知识过时"的病。</li>
+          <li>看懂 <code>support_bot</code> 的<strong>两阶段架构</strong>：离线用 <code>prep_data.py</code> 把文档灌进向量库，在线用 <code>main.py</code> 检索并作答。</li>
+          <li>搞清 <strong>embedding（向量化）</strong>与<strong>余弦相似度</strong>——为什么"语义搜索"能捕捉到关键词匹配抓不住的东西。</li>
+          <li>看清 <code>query_docs</code> 工具如何把检索到的原文<strong>喂回给 LLM</strong>，以及这条链路上"检索不到就会编造"的真实风险。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版里你已经知道：Swarm 的"工具"就是普通 Python 函数，Agent 的 <code>functions</code> 列表列出它能调用的工具；LLM 决定调哪个、传什么参数，引擎负责执行并把返回值喂回去。上一章我们让工具连上了 SQLite，工具函数里出现了真实的读写副作用。这一章的工具依然是普通函数——<code>query_docs(query)</code>——但它背后连的不是关系数据库，而是一个<strong>向量数据库（Qdrant）</strong>。它的返回值也不再是"退款已发起"这样的确认，而是<strong>一段从文档里检索出来的原文</strong>，这段原文会成为 LLM 组织答案的依据。换句话说：本章的关键变化是，<strong>工具的职责从"执行动作"变成了"取回知识"</strong>。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：开卷考试</span>
+          <p>纯 LLM 直接答题，像是<strong>闭卷考试</strong>——全凭脑子里记住的东西，记错了、过时了、根本没学过，就只能硬编一个看起来像样的答案（这就是"幻觉"）。RAG 则是<strong>开卷考试</strong>：拿到题目后，先翻书找到最相关的那几段，再照着这几段组织答案。答得准不准，取决于两件事——<strong>翻书翻得对不对</strong>（检索质量），以及<strong>照着书写得好不好</strong>（生成质量）。<code>support_bot</code> 的"书"，就是 OpenAI 帮助中心的一堆文档。</p>
+        </div>
+
+        <h2>一、RAG 是什么，为什么要它</h2>
+        <p>RAG 的全称是 <strong>Retrieval-Augmented Generation</strong>——检索增强生成。拆开就是三步：<strong>检索</strong>（Retrieval，去知识库里找相关内容）、<strong>增强</strong>（Augmented，把找到的内容拼进给 LLM 的提示里）、<strong>生成</strong>（Generation，LLM 基于这些内容作答）。核心思想只有一句话：<strong>别让模型光凭记忆答，先给它喂相关资料，让它照着资料答。</strong></p>
+        <p>为什么需要它？因为纯 LLM 有两个天生的短板：</p>
+        <ul>
+          <li><strong>知识会过时</strong>：模型的知识冻结在训练截止那一刻。你新出的产品文档、上周改的退款政策，它压根不知道。</li>
+          <li><strong>会一本正经地编造</strong>：问它一个它不确定的事，它往往不会说"我不知道"，而是流畅地编出一个像模像样的答案——这就是幻觉，在客服场景里是致命的。</li>
+        </ul>
+        <p>RAG 用一个"外挂知识库"同时治这两个病：知识库随时能更新（不用重训模型），而答案有据可查（基于检索到的真实原文）。<code>support_bot</code> 就是一个最小可用的 RAG 客服机器人。</p>
+
+        <h2>二、两阶段架构：离线备料 vs 在线查询</h2>
+        <p>这是本章最重要的心智模型。RAG 系统天然分成<strong>两个在不同时间跑的阶段</strong>，别把它们混为一谈：</p>
+        <ul>
+          <li><strong>离线备料（<code>prep_data.py</code>）</strong>：<strong>只在文档更新时跑一次</strong>。它把每篇文档变成向量，连同元数据一起灌进向量库。这一步慢、要花钱（调 embedding 接口），但跑完就存住了。</li>
+          <li><strong>在线查询（<code>main.py</code>）</strong>：<strong>每次用户提问时跑</strong>。它把用户的问题也变成向量，去向量库里找最相似的几篇，取回原文喂给 LLM。这一步要快，而且是<strong>只读</strong>的——它不改动向量库。</li>
+        </ul>
+        <p>打个比方：备料像是<strong>图书馆把新书编好目录、上好架</strong>（费工夫，但只做一次）；查询像是<strong>读者进来按目录找书</strong>（每次都做，但很快，且不改动书架）。下面分别看这两阶段的源码。</p>
+
+        <h3>2.1 离线备料：prep_data.py 逐行精读</h3>
+        <p>先看它怎么把 <code>data/</code> 目录里的一堆 JSON 文章加载进来（<code>prep_data.py</code> 第 13–30 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/prep_data.py · 第 13–30 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">article_list = os.listdir("data")
+
+articles = []
+
+for x in article_list:
+    article_path = "data/" + x
+
+    # Opening JSON file
+    f = open(article_path)
+
+    # returns JSON object as
+    # a dictionary
+    data = json.load(f)
+
+    articles.append(data)
+
+    # Closing file
+    f.close()</code></pre>
+        </div>
+        <p><code>data/</code> 目录里有 70 多篇 JSON 文章，每篇长这样（来自 <code>data/article_6402865.json</code>）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/data/article_6402865.json</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">{
+  "text": "Yes! Please check out our [DALL·E API FAQ] ... for information about the API.",
+  "title": "Is DALL·E available through an API?",
+  "article_id": "6402865",
+  "url": "https://help.openai.com/en/articles/6402865-is-dall-e-available-through-an-api"
+}</code></pre>
+        </div>
+        <p>关键字段是 <code>text</code>（正文，用来算向量）和三个<strong>元数据</strong>——<code>title</code> / <code>article_id</code> / <code>url</code>（用来在检索后展示、溯源）。记住这个区分：<strong>正文拿去向量化，元数据只是随行的标签</strong>。接下来是备料的核心——把每篇文章的 <code>text</code> 变成向量（第 32–38 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/prep_data.py · 第 32–38 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">for i, x in enumerate(articles):
+    try:
+        embedding = client.embeddings.create(model=EMBEDDING_MODEL, input=x["text"])
+        articles[i].update({"embedding": embedding.data[0].embedding})
+    except Exception as e:
+        print(x["title"])
+        print(e)</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 34 行（向量化的一行）</strong>：<code>client.embeddings.create(model="text-embedding-3-large", input=x["text"])</code>。这就是 <strong>embedding（向量化）</strong>：把一段文本交给 OpenAI 的 embedding 模型，换回一串浮点数（一个高维向量）。语义相近的文本，向量在空间里也彼此靠近——这是整个 RAG 能"按意思找"的基石（第三节详解）。</li>
+          <li><strong>第 35 行</strong>：把算出来的向量 <code>embedding.data[0].embedding</code> 塞回文章字典的 <code>"embedding"</code> 键里，让向量和它的元数据待在一起。</li>
+          <li><strong>第 36–38 行（错误兜底）</strong>：<code>try/except</code> 包住——某篇文章向量化失败（比如内容异常）时打印标题继续，不让整个备料脚本因为一篇文章崩掉。备料是批处理，容错很重要。</li>
+        </ul>
+        <p>向量算好了，接下来连向量库、建集合、写入（第 40–80 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/prep_data.py · 第 40–80 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">qdrant = qdrant_client.QdrantClient(host="localhost")
+qdrant.get_collections()
+
+collection_name = "help_center"
+
+vector_size = len(articles[0]["embedding"])
+
+article_df = pd.DataFrame(articles)
+
+# Delete the collection if it exists, so we can rewrite it changes to articles were made
+if qdrant.get_collection(collection_name=collection_name):
+    qdrant.delete_collection(collection_name=collection_name)
+
+# Create Vector DB collection
+qdrant.create_collection(
+    collection_name=collection_name,
+    vectors_config={
+        "article": rest.VectorParams(
+            distance=rest.Distance.COSINE,
+            size=vector_size,
+        )
+    },
+)
+
+# Populate collection with vectors
+qdrant.upsert(
+    collection_name=collection_name,
+    points=[
+        rest.PointStruct(
+            id=k,
+            vector={
+                "article": v["embedding"],
+            },
+            payload=v.to_dict(),
+        )
+        for k, v in article_df.iterrows()
+    ],
+)</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 40 行</strong>：<code>QdrantClient(host="localhost")</code> 连上本地的 Qdrant（一个向量数据库）。它由 <code>docker-compose</code> 起在本机（端口见第五节）。</li>
+          <li><strong>第 45 行</strong>：<code>vector_size = len(articles[0]["embedding"])</code>——取第一篇文章向量的长度，作为整个集合的<strong>向量维度</strong>。<code>text-embedding-3-large</code> 的输出维度是固定的（3072 维），集合里所有向量必须同维，否则没法比较。</li>
+          <li><strong>第 51–53 行（先删后建）</strong>：如果集合已存在就先删掉。这样每次重跑备料都是<strong>全量重建</strong>——文档改了、加了、删了，重跑一遍就同步了。简单粗暴但对这个规模够用。</li>
+          <li><strong>第 56–64 行（建集合）</strong>：<code>create_collection</code> 声明这个集合怎么存向量。两个关键参数：<code>distance=rest.Distance.COSINE</code> 指定用<strong>余弦相似度</strong >衡量向量的"接近程度"（第三节讲）；<code>size=vector_size</code> 固定维度。注意向量被命名为 <code>"article"</code>——Qdrant 允许一个点挂多个命名向量，这里只用一个。</li>
+          <li><strong>第 68–80 行（批量写入）</strong>：<code>upsert</code> 把所有文章一次性灌进去。每篇文章包成一个 <code>PointStruct</code>：<code>id</code> 是行号；<code>vector={"article": ...}</code> 是向量本体；<code>payload=v.to_dict()</code> 是<strong>整篇文章的元数据</strong>（title/text/url 等）。</li>
+        </ul>
+
+        <div class="callout">
+          <span class="callout-title">划重点：向量与元数据"分开存、一起取"</span>
+          <p>看清 <code>PointStruct</code> 的结构——<code>vector</code> 和 <code>payload</code> 是<strong>两个独立字段</strong>。<code>vector</code>（那串浮点数）只用来做<strong>相似度计算</strong>，机器读；<code>payload</code>（title/text/url）是给<strong>人和 LLM 看</strong >的原文与出处。检索时，Qdrant 先用 <code>vector</code> 算出"哪几篇最像"，再把这几篇的 <code>payload</code> 原样返回。<strong>向量负责"找到"，元数据负责"取回"</strong>——两者绑在同一个点上，缺一不可。</p>
+        </div>
+
+        <h3>2.2 在线查询：main.py 的检索链路</h3>
+        <p>备料存好后，在线这一侧的核心是 <code>query_qdrant</code>（<code>main.py</code> 第 20–37 行）——把用户问题变成向量，去库里搜：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/main.py · 第 20–37 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def query_qdrant(query, collection_name, vector_name="article", top_k=5):
+    # Creates embedding vector from user query
+    embedded_query = (
+        client.embeddings.create(
+            input=query,
+            model=EMBEDDING_MODEL,
+        )
+        .data[0]
+        .embedding
+    )
+
+    query_results = qdrant.search(
+        collection_name=collection_name,
+        query_vector=(vector_name, embedded_query),
+        limit=top_k,
+    )
+
+    return query_results</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 22–29 行（把问题也向量化）</strong>：用<strong>和备料时同一个模型</strong> <code>EMBEDDING_MODEL</code> 把用户 <code>query</code> 变成 <code>embedded_query</code>。这一步至关重要——问题和文档必须用<strong>同一个 embedding 模型</strong>投到同一个向量空间，它们的向量才可比较。</li>
+          <li><strong>第 31–35 行（检索）</strong>：<code>qdrant.search(...)</code>。<code>query_vector=(vector_name, embedded_query)</code> 是个元组，前一项 <code>"article"</code> 指定拿哪个命名向量来比（对应备料时建的那个），后一项是问题向量。<code>limit=top_k</code>（默认 5）表示<strong>只要最相似的前 5 篇</strong>——这就是 RAG 里常说的 top-k 检索。</li>
+          <li><strong>第 37 行</strong>：返回搜索结果列表，每个元素带着 <code>payload</code>（那篇文章的 title/text/url）和相似度得分。</li>
+        </ul>
+        <p>但 <code>query_qdrant</code> 只是底层检索，<strong>Agent 真正能调的工具</strong>是 <code>query_docs</code>（第 40–63 行），它把检索结果整理成 LLM 能用的形状：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/main.py · 第 40–63 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def query_docs(query):
+    """Query the knowledge base for relevant articles."""
+    print(f"Searching knowledge base with query: {query}")
+    query_results = query_qdrant(query, collection_name=collection_name)
+    output = []
+
+    for i, article in enumerate(query_results):
+        title = article.payload["title"]
+        text = article.payload["text"]
+        url = article.payload["url"]
+
+        output.append((title, text, url))
+
+    if output:
+        title, content, _ = output[0]
+        response = f"Title: {title}\nContent: {content}"
+        truncated_content = re.sub(
+            r"\s+", " ", content[:50] + "..." if len(content) > 50 else content
+        )
+        print("Most relevant article title:", truncated_content)
+        return {"response": response}
+    else:
+        print("No results found.")
+        return {"response": "No results found."}</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 44–51 行</strong>：调 <code>query_qdrant</code> 拿回 top-5，再从每篇的 <code>payload</code> 里掏出 <code>title</code> / <code>text</code> / <code>url</code>，攒成一个列表。这里用的正是备料时存进 <code>payload</code> 的那些元数据字段。</li>
+          <li><strong>第 53–55 行（只取最相关的一篇）</strong>：<code>output[0]</code> 是相似度最高的那篇。把它的标题和正文拼成一段 <code>response</code> 文本——<strong>这就是要喂回给 LLM 的"参考资料"</strong>。注意：虽然检索了 5 篇，这里只把最相关的 1 篇喂回去。</li>
+          <li><strong>第 60 行（返回给 LLM）</strong>：<code>return {"response": response}</code>。工具返回的这段原文会作为工具结果回到对话里，LLM 看到它，再据此组织给用户的回答。</li>
+          <li><strong>第 61–63 行（兜底）</strong>：一篇都没检索到时返回 <code>"No results found."</code>。这句话会不会真的拦住 LLM 编造，是本章一个要专门警惕的点（见"陷阱"）。</li>
+        </ul>
+
+        <h2>三、embedding 与余弦相似度：为什么能"按意思找"</h2>
+        <p>整个 RAG 的魔法都压在 embedding 这一步上，值得单独讲清楚。</p>
+        <p><strong>embedding（向量化）</strong>把一段文本映射成一个高维空间里的点（一串浮点数）。这个模型经过训练，使得<strong>意思相近的文本，落点也相近</strong>。于是"检索最相关的文档"就变成了一个纯几何问题：<strong>在空间里找离"问题这个点"最近的几个"文档点"</strong>。</p>
+        <p>怎么衡量"近"？这里用的是<strong>余弦相似度（COSINE）</strong>——看两个向量之间<strong>夹角</strong>的大小，而不是它们的长度。夹角越小，方向越一致，就越相似（余弦值越接近 1）。用夹角而非距离的好处是：它只关心"方向（语义倾向）"，不受文本长短带来的向量长度差异干扰。这也正是备料时 <code>create_collection</code> 里 <code>distance=rest.Distance.COSINE</code> 那行的含义。</p>
+
+        <div class="callout">
+          <span class="callout-title">语义搜索 vs 关键词搜索</span>
+          <p>传统关键词搜索（比如 <code>LIKE '%退款%'</code>）只会匹配<strong>字面出现的词</strong>。用户如果问"我付的钱能要回来吗？"——里面根本没有"退款"二字，关键词搜索就抓瞎了。而 embedding 捕捉的是<strong>语义</strong>："要回钱"和"退款"在向量空间里离得很近，照样能被检索到。这就是 RAG 用向量检索而非关键词检索的根本原因：<strong>它按意思找，不按字面找</strong>。</p>
+        </div>
+
+        <figure class="figure">
+          <svg width="760" height="470" viewBox="0 0 760 470" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RAG 两阶段流程图：离线备料与在线查询">
+            <defs>
+              <marker id="rag-ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="rag-arb" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- ===== 上半：离线备料 ===== -->
+            <rect x="16" y="16" width="728" height="196" rx="14" fill="#FBF6EC" stroke="#D3C4A8" stroke-width="1.3"/>
+            <text x="36" y="44" font-family="serif" font-size="15" font-weight="700" fill="#B96A1B">离线备料 · prep_data.py（文档更新时跑一次）</text>
+
+            <!-- 文档 -->
+            <rect x="40" y="72" width="112" height="74" rx="10" fill="#335566" stroke="#243c48" stroke-width="1.4"/>
+            <text x="96" y="103" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#fff">data/ 文档</text>
+            <text x="96" y="123" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#F3ECDF">70+ 篇 JSON</text>
+
+            <!-- embedding 模型 -->
+            <rect x="216" y="72" width="128" height="74" rx="10" fill="#E0913A" stroke="#B96A1B" stroke-width="1.4"/>
+            <text x="280" y="99" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#fff">embedding 模型</text>
+            <text x="280" y="118" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#fff">text-embedding</text>
+            <text x="280" y="131" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#fff">-3-large</text>
+
+            <!-- 向量+元数据 -->
+            <rect x="408" y="72" width="128" height="74" rx="10" fill="#F2B441" stroke="#B96A1B" stroke-width="1.4"/>
+            <text x="472" y="99" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#5a3608">向量 + 元数据</text>
+            <text x="472" y="118" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#5a3608">vector / payload</text>
+            <text x="472" y="131" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#5a3608">PointStruct</text>
+
+            <!-- Qdrant -->
+            <rect x="600" y="72" width="120" height="74" rx="10" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.4"/>
+            <text x="660" y="103" text-anchor="middle" font-family="serif" font-size="13" fill="#fff">Qdrant</text>
+            <text x="660" y="123" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#F3ECDF">向量库 · upsert</text>
+
+            <!-- 箭头 -->
+            <path d="M154 109 L212 109" stroke="#B96A1B" stroke-width="2" marker-end="url(#rag-ar)"/>
+            <path d="M346 109 L404 109" stroke="#B96A1B" stroke-width="2" marker-end="url(#rag-ar)"/>
+            <path d="M538 109 L596 109" stroke="#B96A1B" stroke-width="2" marker-end="url(#rag-ar)"/>
+            <text x="183" y="102" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#8a4e12">取 text</text>
+            <text x="472" y="164" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#8a4e12">分开存</text>
+
+            <!-- ===== 下半：在线查询 ===== -->
+            <rect x="16" y="236" width="728" height="218" rx="14" fill="#F1F5F5" stroke="#B9C9CC" stroke-width="1.3"/>
+            <text x="36" y="264" font-family="serif" font-size="15" font-weight="700" fill="#335566">在线查询 · main.py（每次用户提问时跑 · 只读）</text>
+
+            <!-- 用户问题 -->
+            <rect x="40" y="292" width="112" height="66" rx="10" fill="#335566" stroke="#243c48" stroke-width="1.4"/>
+            <text x="96" y="320" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#fff">用户问题</text>
+            <text x="96" y="339" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#F3ECDF">"钱能要回吗?"</text>
+
+            <!-- 问题向量化 -->
+            <rect x="196" y="292" width="120" height="66" rx="10" fill="#E0913A" stroke="#B96A1B" stroke-width="1.4"/>
+            <text x="256" y="320" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#fff">问题向量化</text>
+            <text x="256" y="339" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#fff">同一 embedding</text>
+
+            <!-- 向量检索 -->
+            <rect x="360" y="292" width="124" height="66" rx="10" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.4"/>
+            <text x="422" y="316" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#fff">向量检索 top-k</text>
+            <text x="422" y="335" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#F3ECDF">余弦相似度</text>
+            <text x="422" y="348" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#F3ECDF">qdrant.search</text>
+
+            <!-- 取回原文 -->
+            <rect x="528" y="292" width="120" height="66" rx="10" fill="#F2B441" stroke="#B96A1B" stroke-width="1.4"/>
+            <text x="588" y="320" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#5a3608">取回原文</text>
+            <text x="588" y="339" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#5a3608">payload.text</text>
+
+            <!-- LLM 作答 -->
+            <rect x="360" y="392" width="124" height="46" rx="10" fill="#335566" stroke="#243c48" stroke-width="1.4"/>
+            <text x="422" y="413" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#fff">拼进 prompt</text>
+            <text x="422" y="429" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#F3ECDF">喂回 LLM → 答案</text>
+
+            <!-- 箭头 -->
+            <path d="M154 325 L192 325" stroke="#335566" stroke-width="2" marker-end="url(#rag-arb)"/>
+            <path d="M318 325 L356 325" stroke="#335566" stroke-width="2" marker-end="url(#rag-arb)"/>
+            <path d="M486 325 L524 325" stroke="#335566" stroke-width="2" marker-end="url(#rag-arb)"/>
+            <path d="M588 360 L588 405 L488 405" stroke="#335566" stroke-width="2" marker-end="url(#rag-arb)"/>
+
+            <!-- 查询指向 Qdrant（跨半区虚线） -->
+            <path d="M422 358 L422 236 L660 236 L660 150" stroke="#335566" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#rag-arb)"/>
+            <text x="545" y="230" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#335566">在同一个向量库里检索（只读，不改动）</text>
+          </svg>
+          <figcaption>图 9-1：RAG 的两阶段全景。上半<strong>离线备料</strong>：文档取正文 → embedding 模型 → 向量与元数据分开存进 Qdrant。下半<strong>在线查询</strong>：用户问题用同一模型向量化 → 按余弦相似度检索 top-k → 取回原文 → 拼进 prompt 喂回 LLM 生成答案。虚线表示查询只在已建好的向量库里<strong>只读检索</strong>，不改动它。</figcaption>
+        </figure>
+
+        <h2>四、Agent 编排：转交给"会查资料"的专家</h2>
+        <p>工具 <code>query_docs</code> 挂在哪个 Agent 上？这里的编排很简洁（<code>main.py</code> 第 77–95 行）：一个<strong>门面 Agent</strong> 负责接待，一个<strong>帮助中心 Agent</strong> 负责查资料，前者通过 handoff 把用户转给后者。</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/support_bot/main.py · 第 77–95 行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">def transfer_to_help_center():
+    """Transfer the user to the help center agent."""
+    return help_center_agent
+
+
+user_interface_agent = Agent(
+    name="User Interface Agent",
+    instructions="You are a user interface agent that handles all interactions with the user. Call this agent for general questions and when no other agent is correct for the user query.",
+    functions=[transfer_to_help_center],
+)
+
+help_center_agent = Agent(
+    name="Help Center Agent",
+    instructions="You are an OpenAI help center agent who deals with questions about OpenAI products, such as GPT models, DALL-E, Whisper, etc.",
+    functions=[query_docs, submit_ticket, send_email],
+)
+
+if __name__ == "__main__":
+    run_demo_loop(user_interface_agent)</code></pre>
+        </div>
+        <ul>
+          <li><strong>第 77–79 行（handoff 工具）</strong>：<code>transfer_to_help_center</code> 是一个返回<strong>另一个 Agent</strong> 的普通函数——这正是入门版讲过的 handoff：工具返回 Agent，引擎就把后续对话交给它。</li>
+          <li><strong>第 82–86 行（门面 Agent）</strong>：<code>user_interface_agent</code> 只有一个工具——把用户转给帮助中心。它是入口，负责"接待并分流"。</li>
+          <li><strong>第 88–92 行（会查资料的专家）</strong>：<code>help_center_agent</code> 挂了三个工具——<code>query_docs</code>（查知识库，本章主角）、<code>submit_ticket</code>（开工单）、<code>send_email</code>（发邮件）。它的 <code>instructions</code> 明确了角色：OpenAI 产品的帮助中心客服。</li>
+          <li><strong>第 95 行</strong>：<code>run_demo_loop</code> 从<strong>门面 Agent</strong> 起步。用户一进来先碰到它，被转交后才进入会查资料的帮助中心 Agent。</li>
+        </ul>
+        <p>注意 <code>help_center_agent</code> 的工具组合很有讲究：<strong>能查到就用 <code>query_docs</code> 答；查不到或用户有具体诉求，就用 <code>submit_ticket</code> 开工单、用 <code>send_email</code> 跟进</strong>。RAG 不是万能的，配上"兜底动作"才是一个完整的客服闭环——这也引出了下一节要警惕的坑。</p>
+
+        <h2>五、把它跑起来</h2>
+        <div class="callout">
+          <span class="callout-title">运行前提（比上一章重）</span>
+          <p>本章比上一章多两个外部依赖：<strong>① 一个运行中的 Qdrant 向量库</strong>——用 <code>docker-compose up -d</code> 起在本机（<code>docker-compose.yaml</code> 里映射的是端口 <strong>6335</strong>），所以<strong>必须先装好并启动 Docker</strong>；<strong>② OpenAI API Key</strong>（<code>export OPENAI_API_KEY=...</code>）——备料和查询都要调 embedding 接口。完整流程见 <code>Makefile</code>：<code>make install</code>（装依赖）→ <code>docker-compose up -d</code>（起 Qdrant）→ <code>make prep</code>（跑 <code>prep_data.py</code> 灌数据）→ <code>make run</code>（跑 <code>main.py</code>）。<strong>不想真跑也完全没关系</strong>——本章的重点是看懂"离线灌数据、在线检索作答"这条逻辑链路，顺着源码读就够了，无需真的起服务或消耗额度。</p>
+        </div>
+        <p>顺序不能乱：<strong>必须先 <code>make prep</code> 把向量灌进 Qdrant，<code>make run</code> 才有东西可查</strong>。这正是"离线备料先于在线查询"的直接体现。下面是一段<strong>推演</strong>的交互（示意，LLM 实际措辞会不同；重点看"接待 → 转交 → 检索 → 据实作答"的路径）：</p>
+        <div class="output-block">
+          <div class="out-label">预期交互（推演 · 一次成功检索）</div>
+          <pre>用户: DALL·E 有 API 吗？
+[User Interface Agent] → transfer_to_help_center            # 门面判断这是产品问题，转交
+[Help Center Agent] → 调用 query_docs("DALL·E 有 API 吗")
+Searching knowledge base with query: DALL·E 有 API 吗        # query_docs 里的 print
+Most relevant article title: Yes! Please check out our [DALL·E...  # 命中 article_6402865
+[Help Center Agent] 是的，DALL·E 提供 API。你可以查看官方的     # LLM 基于检索到的原文组织回答
+             DALL·E API FAQ 了解更多：
+             https://help.openai.com/en/articles/6705023</pre>
+        </div>
+        <p>看清这条链路：门面 Agent 先 handoff 给帮助中心 Agent；后者调 <code>query_docs</code>，工具内部把问题向量化、去 Qdrant 检索、取回最相关那篇的原文（<code>{"response": "Title: ...\nContent: ..."}</code>）；这段原文回到对话里，LLM <strong>照着它</strong>组织出最终回答，连带把文档里的 URL 也一并给了用户。<strong>答案不是模型凭空想的，而是有出处的。</strong></p>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：检索不到时，LLM 仍可能"自由发挥"</span>
+          <p>务必记住：<code>query_docs</code> 返回的只是<strong>检索到的原文</strong>，<strong>最终答案仍由 LLM 组织生成</strong>。这中间有个危险的缝隙——当知识库里<strong>没有</strong>相关文档时，检索会返回一堆<strong>相似度很低、其实不相关</strong>的文章（向量检索总会返回 top-k，哪怕都不太沾边），或者返回 <code>"No results found."</code>。此时 LLM 可能：</p>
+          <ul>
+            <li>被那些<strong>勉强沾边</strong>的文章带偏，把不相关的内容当依据答出来；</li>
+            <li>或者干脆<strong>无视</strong>"没查到"，凭自己的记忆<strong>编</strong>一个流畅但错误的答案——RAG 想治的"幻觉"又回来了。</li>
+          </ul>
+          <p><strong>正确做法</strong>是在流程和提示词层面立规矩：明确要求 Agent"<strong>只依据检索到的资料作答；查不到就老实说不知道，并用 <code>submit_ticket</code> 开工单转人工</strong>"。<code>support_bot</code> 给 <code>help_center_agent</code> 配上 <code>submit_ticket</code> / <code>send_email</code>，正是为了这个兜底出口——RAG 检索是"尽力而为"，而"查不到怎么办"必须由编排显式兜住，不能指望模型自觉。</p>
+        </div>
+
+        <div class="deepbox">
+          <details>
+            <summary>深入：本例是"最小可用版"，生产 RAG 还差什么？</summary>
+            <div class="deepbox-body">
+              <p><code>support_bot</code> 把整篇文章当作一个向量存、检索时也整篇取回——这在文章都很短时够用，但生产级 RAG 通常还要加三样东西：</p>
+              <ul>
+                <li><strong>Chunking（分块）</strong>：长文档不应整篇算一个向量（语义会被"平均"掉，也可能超过模型输入上限）。实践中会把文档切成若干段落级的小块，各自向量化，检索时命中的是"最相关的那一小块"，更精准。</li>
+                <li><strong>Rerank（重排）</strong>：向量检索快但粗。常见做法是先用向量召回较多候选（比如 top-50），再用一个更精细（也更慢）的重排模型对这些候选打分，选出真正最相关的几条喂给 LLM。<strong>召回求全、重排求准</strong>。</li>
+                <li><strong>混合检索（Hybrid Search）</strong>：把向量检索（语义）和关键词检索（BM25 等，精确匹配专有名词、型号、错误码）结合起来。纯语义检索有时会漏掉"必须字面命中"的词，混合检索取两者之长。</li>
+              </ul>
+              <p>本例刻意省掉了这些，只为让你看清 RAG 最本质的骨架：<strong>向量化 → 存 → 检索 → 喂回</strong>。骨架理解了，上面这些都是往上加的"增强件"。</p>
+            </div>
+          </details>
+        </div>
+
+        <h2>六、RAG 值不值：先查资料 vs 直接开答</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">RAG（先检索再作答）vs 纯 LLM（直接开答）</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">RAG · 先查资料再答</div>
+              <ul>
+                <li><strong>答案有据可查</strong>：基于检索到的真实原文，还能给出文档 URL 供用户核对，大幅压低幻觉。</li>
+                <li><strong>知识可即时更新</strong>：政策/文档改了，重跑一次备料即可，<strong>无需重训模型</strong>。</li>
+                <li><strong>能覆盖模型没学过的私有知识</strong>：你自己的产品文档、内部 wiki 都能接进来。</li>
+                <li>代价：要<strong>维护一个向量库</strong>、跑<strong>离线备料</strong>、还要为检索质量做调优（分块、top-k、重排……）。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">纯 LLM · 直接开答</div>
+              <ul>
+                <li><strong>简单</strong>：一个提示词就能跑，没有向量库、没有备料、没有额外基础设施。</li>
+                <li><strong>快</strong>：省掉了检索这一跳。</li>
+                <li>代价：<strong>会编造</strong>——遇到不确定的就自信地胡说；<strong>知识过时</strong>——训练截止后的事一律不知道；<strong>够不着私有知识</strong>。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>结论：只要问答涉及<strong>会变化的、私有的、或要求准确溯源的知识</strong>（客服、企业知识库、产品答疑就是典型），RAG 几乎是必选项——它用"维护一个向量库"的成本，换来"答案有据、知识可更新"的可靠性。反之，纯闲聊、创意写作这类<strong>不依赖外部事实</strong>的场景，直接让 LLM 开答反而更轻快。</p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>为什么用户的问题也要用<strong>同一个</strong> embedding 模型向量化？</summary>
+            <div class="faq-body">
+              <p>因为向量之间能比较相似度的前提是它们在<strong>同一个向量空间</strong>里。不同的 embedding 模型会把文本投到<strong>不同的、不可通约的</strong>空间——就像一个用"经纬度"标位置、另一个用"街道门牌"，两套坐标没法直接算距离。所以备料时文档用 <code>text-embedding-3-large</code>，在线查询时问题<strong>必须也用它</strong>，两边的向量才可比。一旦换了 embedding 模型，整个向量库都得用新模型<strong>重新备料一遍</strong>。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么用余弦相似度，而不是普通的直线距离？</summary>
+            <div class="faq-body">
+              <p>余弦相似度看的是两个向量的<strong>夹角</strong>（方向是否一致），不看它们的长度。在文本 embedding 里，向量的"方向"编码了语义倾向，而"长度"往往受文本长短等无关因素影响。用夹角衡量，就能<strong>只关心"意思像不像"，不被长短干扰</strong>。这也是为什么备料时 <code>create_collection</code> 明确指定了 <code>distance=COSINE</code>——建库时选定的度量方式，检索时会一直沿用。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么向量和元数据要分开存在 <code>vector</code> 和 <code>payload</code> 两个字段里？</summary>
+            <div class="faq-body">
+              <p>因为它们的<strong>用途完全不同</strong>。<code>vector</code>（那串浮点数）只服务于<strong>相似度计算</strong>——机器拿它算"哪篇最像"，人根本读不懂。<code>payload</code>（title/text/url）才是<strong>要展示、要喂给 LLM、要给用户溯源</strong>的内容。检索时是"先用 vector 找到点，再取这个点的 payload 用"。分开存让职责清晰：<strong>vector 负责"定位"，payload 负责"内容"</strong>，两者绑在同一个 <code>PointStruct</code> 上一起取回。</p>
+            </div>
+          </details>
+          <details>
+            <summary>在线查询会不会改动向量库？每次问都要重新备料吗？</summary>
+            <div class="faq-body">
+              <p>不会，也不用。<code>query_qdrant</code> 里只有 <code>qdrant.search(...)</code>，这是<strong>纯只读</strong>操作——它只是去已经建好的库里找相似向量，<strong>不写、不改、不删</strong>。所以在线查询没有副作用，天然可并发、结果也可缓存（同一个问题的检索结果是稳定的）。只有当<strong>文档本身发生变化</strong>（新增、修改、删除文章）时，才需要重跑一次 <code>prep_data.py</code> 把向量库更新到最新——这正是"离线备料 vs 在线只读检索"这条分界线的意义。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><strong>RAG = 检索增强生成</strong>：先去知识库检索相关资料，再让 LLM 照着资料作答。它治的是纯 LLM 的两大病——<strong>会编造</strong>和<strong>知识过时</strong>。类比"开卷考试：先翻书找相关段落，再作答"。</li>
+            <li><strong>两阶段架构</strong>是核心心智模型：<strong>离线备料</strong>（<code>prep_data.py</code>，文档更新时跑一次，把文档向量化后灌进 Qdrant）与<strong>在线查询</strong>（<code>main.py</code>，每次提问时把问题向量化、只读检索、取回原文喂回 LLM）。</li>
+            <li><strong>embedding + 余弦相似度</strong>让检索能"按意思找"：语义相近的文本向量也相近，余弦相似度看夹角、只关心语义方向——这是关键词匹配做不到的。问题与文档<strong>必须用同一个 embedding 模型</strong>。</li>
+            <li><strong>向量与元数据分开存</strong>：<code>PointStruct</code> 里 <code>vector</code> 负责相似度计算、<code>payload</code>（title/text/url）负责取回展示与溯源，一起绑在同一个点上。</li>
+            <li><strong>检索到 ≠ 答对</strong>：最终答案仍由 LLM 组织，检索不到时它可能被弱相关结果带偏、甚至无视"没查到"继续编造。必须在编排上兜底——<strong>没查到就说不知道、开工单转人工</strong>（这正是 <code>help_center_agent</code> 配 <code>submit_ticket</code> / <code>send_email</code> 的用意）。</li>
+            <li>本例是<strong>最小可用版</strong>；生产级 RAG 还要加 <strong>chunking（分块）、rerank（重排）、混合检索</strong>——但它们都是往这个"向量化→存→检索→喂回"骨架上加的增强件。</li>
+          </ul>
+          <p style="margin-bottom:0;">到这里，你的 Agent 已经会用工具、会读写数据库、会查资料了。可一个绕不开的问题浮现出来：<strong>你怎么知道它答得到底好不好？</strong>是真的据实作答，还是在编？检索准不准？下一章我们换个视角，聊聊<strong>怎么给 Agent 做评测</strong>——把"感觉它还行"变成"有指标、可衡量"。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-08.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">08 · 给 Agent 接真实数据库</span>
+          </a>
+          <a class="next" href="chapter-10.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">10 · 怎么给 Agent 做评测</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

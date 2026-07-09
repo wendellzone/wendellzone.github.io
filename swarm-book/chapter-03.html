@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据模型骨架 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第三章 · Chapter 03</div>
+          <div class="ch-bignum">03</div>
+          <h1>数据模型骨架</h1>
+          <p class="lede">上一章我们用到了 <code>Agent</code> 和 <code>Response</code>，却没看清它们内部长什么样。这一章翻开 <code>types.py</code>——整个框架就靠这三个"数据类"撑起骨架。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>读懂 <code>types.py</code> 里的三个核心数据类：<strong>Agent</strong>、<strong>Response</strong>、<strong>Result</strong>。</li>
+          <li>搞清 <code>Agent</code> 的每个字段是干嘛的，尤其是 <code>instructions</code> 为什么能"既是字符串又是函数"。</li>
+          <li>理解 <code>Response</code>（一次办公的交接单）和 <code>Result</code>（工具结果的三合一信封）分别在什么时候出现。</li>
+          <li>知道 <code>AgentFunction</code> 这个"类型别名"是什么意思。</li>
+        </ul>
+
+        <h2>一、先认识一下 pydantic：会自检的档案表</h2>
+        <p><code>types.py</code> 里的三个类，都继承自一个叫 <code>BaseModel</code> 的东西，它来自第三方库 <strong>pydantic</strong>。你暂时只需要理解它的作用：</p>
+        <div class="callout analogy">
+          <span class="callout-title">类比：会自检的入职表格</span>
+          <p>普通的 Python 类像一张<strong>空白纸</strong>，你随便往上写什么它都不管。而 pydantic 的 <code>BaseModel</code> 像一张<strong>印好格子、会自动校验的表格</strong>：每个格子规定了"必须填什么类型"（比如名字必须是文字、工具必须是一串函数），还能预设默认值。填错类型它会当场报错。这让数据结构既清晰又可靠。</p>
+        </div>
+        <p>所以，接下来看到的每个 <code>class ... (BaseModel)</code>，你都可以想成是在<strong>定义一张表格的格式</strong>：有哪些格子、每格填什么、默认填什么。</p>
+
+        <h2>二、开篇一行：AgentFunction 类型别名</h2>
+        <p>文件顶部（去掉 import）第一句实质代码是这个：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">types.py · 类型别名</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">AgentFunction = Callable[[], Union[str, "Agent", dict]]</code></pre>
+        </div>
+        <p>这行不创建任何对象，它只是给一个"类型"起个<strong>好记的外号</strong>（术语叫<em>类型别名</em>）。我们从右往左拆：</p>
+        <ul>
+          <li><code>Callable[[], ...]</code>：<code>Callable</code> 意思是"可调用的东西"，通俗说就是<strong>一个函数</strong>。方括号里的 <code>[]</code> 表示它的参数，这里先简化成"无参数"。</li>
+          <li><code>Union[str, "Agent", dict]</code>：<code>Union</code> 表示"以下几种<strong>任选其一</strong>"。也就是说，这个函数的<strong>返回值</strong>可以是三种之一：一段文字（<code>str</code>）、一个 <code>Agent</code>、或一个字典（<code>dict</code>）。</li>
+        </ul>
+        <p>合起来，<code>AgentFunction</code> 就是给"<strong>一个 Agent 能调用的工具函数</strong>"起的外号，它的规格是：<em>可以被调用，返回文字、或一个新 Agent、或一个字典</em>。为什么允许返回这三种？这正好对应后面三种玩法——返回文字是普通工具（第 04 章）、返回 Agent 会触发交接（第 06 章）、返回字典可用于更新上下文（第 05 章）。这里先埋个伏笔，混个眼熟即可。</p>
+        <div class="callout tip">
+          <span class="callout-title">"别名"有什么用？</span>
+          <p>就是<strong>少打字、更易读</strong>。有了 <code>AgentFunction</code> 这个外号，后面定义 Agent 的工具箱时，就能直接写 <code>functions: List[AgentFunction]</code>，而不用把那一长串 <code>Callable[[], Union[...]]</code> 重复抄一遍。</p>
+        </div>
+
+        <h2>三、Agent：一张"员工档案卡"</h2>
+        <p>这是全书最重要的数据类。它把第 01 章那个"带工具箱的员工"正式落成了代码：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">types.py · class Agent</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">class Agent(BaseModel):
+    name: str = "Agent"                                # 员工名字，默认叫 "Agent"
+    model: str = "gpt-4o"                              # 用哪个大脑（模型），默认 gpt-4o
+    instructions: Union[str, Callable[[], str]] = "You are a helpful agent."  # 岗位说明书
+    functions: List[AgentFunction] = []               # 工具箱：一串可调用的工具函数，默认空
+    tool_choice: str = None                           # 是否/如何强制调用工具，默认不强制
+    parallel_tool_calls: bool = True                  # 允许一次并行调用多个工具，默认允许</code></pre>
+        </div>
+        <div class="callout analogy">
+          <span class="callout-title">类比：一张员工档案卡</span>
+          <p>整个 <code>Agent</code> 就像人事部为一名员工填的<strong>档案卡</strong>：姓名、能力评级（用哪个大脑）、岗位说明书、会用的工具清单……每一栏都有默认值，所以你只填想改的那几栏就行——这正是第 02 章我们只写了 <code>name</code> 和 <code>instructions</code> 却依然能跑的原因。</p>
+        </div>
+        <p>逐栏来看：</p>
+        <ul>
+          <li><strong><code>name</code></strong>（默认 <code>"Agent"</code>）：员工的名字。在多 Agent 协作、看日志时用来区分是谁。</li>
+          <li><strong><code>model</code></strong>（默认 <code>"gpt-4o"</code>）：给这个 Agent 当"大脑"的模型。想省钱可改成 <code>"gpt-4o-mini"</code> 之类。</li>
+          <li><strong><code>instructions</code></strong>：<strong>岗位说明书</strong>，也就是 system prompt。类型很特别，下面单独讲。</li>
+          <li><strong><code>functions</code></strong>（默认空列表 <code>[]</code>）：<strong>工具箱</strong>，装着这个 Agent 能调用的工具函数（每个都符合上面 <code>AgentFunction</code> 的规格）。第 02 章这里是空的，所以那个 Agent 只会说话。第 04 章我们就往里塞工具。</li>
+          <li><strong><code>tool_choice</code></strong>（默认 <code>None</code>）：控制"要不要/强制调用某个工具"。默认 <code>None</code> 表示交给大脑自己决定何时用工具。</li>
+          <li><strong><code>parallel_tool_calls</code></strong>（默认 <code>True</code>）：允不允许大脑<strong>一次点好几个工具</strong>并行执行（比如同时查天气和查汇率）。默认允许，能提速。</li>
+        </ul>
+
+        <h3>重点：instructions 为什么能"既是字符串，又是函数"？</h3>
+        <p>注意 <code>instructions</code> 那一栏的类型：<code>Union[str, Callable[[], str]]</code>。翻译过来就是——它<strong>可以是一段固定文字</strong>（<code>str</code>），<strong>也可以是一个"能返回文字的函数"</strong>（<code>Callable[[], str]</code>）。为什么要给个说明书留这么大的灵活度？</p>
+        <div class="callout note">
+          <span class="callout-title">固定说明书 vs. 活的说明书</span>
+          <p>如果说明书永远不变（"你是一个乐于助人的助手"），写成<strong>字符串</strong>就够了。但很多时候，说明书需要<strong>随情况变化</strong>：比如"你正在服务 VIP 客户<strong>张三</strong>，他的会员等级是<strong>黄金</strong>"——名字和等级是运行时才知道的。这时就把 <code>instructions</code> 写成一个<strong>函数</strong>：调用时临时读取当前信息，动态"打印"出一份定制说明书。</p>
+        </div>
+        <div class="callout analogy">
+          <span class="callout-title">类比：印死的告示牌 vs. 电子屏</span>
+          <p>字符串版的说明书像一块<strong>刻死的告示牌</strong>，内容永远一样；函数版的说明书像一块<strong>电子屏</strong>，每次显示前都能根据实时数据（客户是谁、现在几点）刷新内容。这种"活的说明书"依赖的实时数据，就是第 05 章的主角——<strong>上下文变量（context variables）</strong>。这里先记住：<em>instructions 可以是函数，就是为上下文变量埋的伏笔。</em></p>
+        </div>
+
+        <h2>四、Response：一次办公的"完整交接单"</h2>
+        <p>还记得第 02 章 <code>client.run(...)</code> 返回的那个 <code>response</code> 吗？它就是这个类的实例：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">types.py · class Response</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">class Response(BaseModel):
+    messages: List = []                    # 本轮结束后，完整的对话历史
+    agent: Optional[Agent] = None          # 当前接手的 Agent（可能已被交接换人）
+    context_variables: dict = {}           # 最新的上下文变量</code></pre>
+        </div>
+        <div class="callout analogy">
+          <span class="callout-title">类比：一次办公的交接单</span>
+          <p>把一次 <code>run()</code> 想成"让员工办一趟事"。事办完，他递给你一张<strong>交接单</strong>，上面写清三件事：<strong>①这趟对话都聊了些什么</strong>（messages）、<strong>②现在归谁负责</strong>（agent，如果中途转接过就是新员工）、<strong>③过程中记下的上下文</strong>（context_variables）。你拿着这张交接单，就能无缝发起下一轮。</p>
+        </div>
+        <ul>
+          <li><strong><code>messages</code></strong>：本轮跑完后<strong>完整的</strong>对话历史——不只是你最初递进去的，还追加了大脑的新回复、以及中间的工具调用记录。第 02 章我们取 <code>response.messages[-1]</code>，取的就是这里最后一条。</li>
+          <li><strong><code>agent</code></strong>（类型 <code>Optional[Agent]</code>，即"可能是 Agent，也可能是 None"）：本轮结束时<strong>当前接手</strong>的 Agent。单 Agent 时它就是你传进去的那个；发生交接（第 06 章）后，它会变成被转接到的新 Agent。</li>
+          <li><strong><code>context_variables</code></strong>：跑完后<strong>最新的</strong>上下文变量（第 05 章详讲）。</li>
+        </ul>
+
+        <h2>五、Result：工具执行结果的"三合一信封"</h2>
+        <p>最后一个类，是给<strong>工具函数的返回值</strong>用的。当一个 Agent 的工具跑完，它可以把结果包装成一个 <code>Result</code> 交回引擎：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">types.py · class Result</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">class Result(BaseModel):
+    """
+    Encapsulates the possible return values for an agent function.
+
+    Attributes:
+        value (str): The result value as a string.
+        agent (Agent): The agent instance, if applicable.
+        context_variables (dict): A dictionary of context variables.
+    """
+
+    value: str = ""                    # 工具产出的文本结果
+    agent: Optional[Agent] = None      # 可选：夹带一个新 Agent，用来触发交接
+    context_variables: dict = {}       # 可选：要写回/更新的上下文变量</code></pre>
+        </div>
+        <p>类里那段带三引号的文字是<strong>文档字符串（docstring）</strong>，是作者留给读代码的人的说明，程序不会执行它。它已经把三个字段讲清楚了。</p>
+        <div class="callout analogy">
+          <span class="callout-title">类比：一个三合一信封</span>
+          <p><code>Result</code> 就像工具办完事后寄回的一个<strong>信封</strong>，里面最多能塞三样东西，而且每样都可选：</p>
+          <ul style="margin:8px 0 0;">
+            <li><strong>一张便签（value）</strong>：文字结果，比如"查到纽约 67°F"。—— 这是最常见的用法（第 04 章）。</li>
+            <li><strong>一张调令（agent）</strong>：夹带一个新 Agent，等于对引擎说"这事该转给他了"，触发<strong>交接</strong>。（第 06 章）</li>
+            <li><strong>一张备忘（context_variables）</strong>：要更新的上下文信息，比如"记下客户已升级为黄金会员"。（第 05 章）</li>
+          </ul>
+        </div>
+        <div class="callout tip">
+          <span class="callout-title">一个信封，三种玩法</span>
+          <p>正因为 <code>Result</code> 能同时携带这三样，Swarm 才能用<strong>同一套机制</strong>优雅地支持三件看似不同的事：普通返回结果、切换负责人、更新共享状态。你现在只需记住这个"三合一信封"的存在，具体怎么用，第 04、05、06 章会各自登场。</p>
+        </div>
+
+        <h2>六、把三者串起来看</h2>
+        <p>这三个数据类不是孤立的，它们在一次 <code>run()</code> 里各司其职、首尾相接。用一张图把关系看清：</p>
+
+        <figure class="figure">
+          <svg width="720" height="360" viewBox="0 0 720 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agent、Response、Result 三个数据类的关系图">
+            <defs>
+              <marker id="arrH" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="arrS" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- Agent 卡片 -->
+            <rect x="24" y="120" width="180" height="120" rx="12" fill="#F3ECDF" stroke="#D3C4A8" stroke-width="1.5"/>
+            <text x="114" y="112" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">Agent（员工档案卡）</text>
+            <text x="42" y="152" font-family="monospace" font-size="11" fill="#B96A1B">name / model</text>
+            <text x="42" y="174" font-family="monospace" font-size="11" fill="#B96A1B">instructions</text>
+            <text x="42" y="196" font-family="monospace" font-size="11" fill="#B96A1B">functions[]</text>
+            <text x="42" y="218" font-family="monospace" font-size="11" fill="#B96A1B">tool_choice ...</text>
+
+            <!-- run() 六边形 -->
+            <path d="M360 118 L432 158 L432 232 L360 272 L288 232 L288 158 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="360" y="190" text-anchor="middle" font-family="serif" font-size="17" fill="#fff">run()</text>
+            <text x="360" y="212" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">引擎主循环</text>
+
+            <!-- Agent -> run -->
+            <path d="M208 180 L282 180" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arrH)"/>
+            <text x="245" y="170" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">喂进</text>
+
+            <!-- run -> Response -->
+            <path d="M436 195 L512 195" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arrH)"/>
+            <text x="474" y="185" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">吐出</text>
+
+            <!-- Response 卡片 -->
+            <rect x="516" y="132" width="180" height="126" rx="12" fill="#F2B44118" stroke="#E0913A" stroke-width="1.5"/>
+            <text x="606" y="124" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">Response（交接单）</text>
+            <text x="534" y="164" font-family="monospace" font-size="11" fill="#B96A1B">messages</text>
+            <text x="534" y="188" font-family="monospace" font-size="11" fill="#B96A1B">agent</text>
+            <text x="534" y="212" font-family="monospace" font-size="11" fill="#B96A1B">context_variables</text>
+            <text x="606" y="242" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72" font-style="italic">一次办公的完整结果</text>
+
+            <!-- Result 卡片（下方） -->
+            <rect x="220" y="300" width="280" height="48" rx="10" fill="#33556612" stroke="#335566" stroke-width="1.3"/>
+            <text x="360" y="322" text-anchor="middle" font-family="serif" font-size="13" fill="#335566">Result（工具结果的三合一信封）</text>
+            <text x="360" y="340" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">value · agent · context_variables</text>
+
+            <!-- 工具 -> Result -> run 的回环 -->
+            <path d="M360 300 L360 276" stroke="#335566" stroke-width="2" marker-end="url(#arrS)"/>
+            <text x="486" y="292" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#335566">工具函数返回 Result，回喂给循环</text>
+          </svg>
+          <figcaption>图 3-1：<code>Agent</code> 被喂给 <code>run()</code>，<code>run()</code> 吐出 <code>Response</code>；循环里每个工具函数则返回一个 <code>Result</code> 回喂给引擎。</figcaption>
+        </figure>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>Response 和 Result 长得很像，都有 agent 和 context_variables，怎么区分？</summary>
+            <div class="faq-body">
+              <p>看<strong>谁产出、给谁用</strong>：<code>Response</code> 是 <strong>run() 对外</strong>的最终产物——整趟事办完交给<strong>你</strong>的交接单；<code>Result</code> 是<strong>单个工具函数对内</strong>的返回——工具跑完交给<strong>引擎</strong>的信封，引擎消化后可能据此更新对话、换 Agent 或改上下文。一个是"对外的总结果"，一个是"对内的零件"。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么 instructions 要费劲允许"字符串或函数"两种类型？</summary>
+            <div class="faq-body">
+              <p>为了同时照顾"固定"和"动态"两种需求。绝大多数场景说明书是固定的，写字符串最省事；但当说明书需要<strong>随运行时数据变化</strong>（如带上当前用户名、时间、会员等级）时，就必须写成函数，在每次调用时临时生成。这个函数版说明书正是第 05 章"上下文变量"要驱动的东西——本章先埋伏笔。</p>
+            </div>
+          </details>
+          <details>
+            <summary>这些字段的默认值（如 model="gpt-4o"、functions=[]）是谁定的？</summary>
+            <div class="faq-body">
+              <p>就是 <code>types.py</code> 里 <code>= ...</code> 那部分定的。得益于 pydantic 的 <code>BaseModel</code>，你在创建 <code>Agent(name="X")</code> 时只填想改的字段，其余的自动套用这些默认值。这就是第 02 章我们只写两个字段却能正常运行的底层原因。</p>
+            </div>
+          </details>
+          <details>
+            <summary>AgentFunction 只是个"别名"，不写它行不行？</summary>
+            <div class="faq-body">
+              <p>技术上，你可以把它那一长串 <code>Callable[[], Union[str, "Agent", dict]]</code> 直接抄到 <code>functions</code> 字段的类型里，效果一样。但那样又长又难读、还得抄好几处。起个 <code>AgentFunction</code> 的别名，纯粹是为了<strong>可读性和少重复</strong>——一看名字就知道"这是一个 Agent 工具函数的规格"。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><code>types.py</code> 用 pydantic 的 <code>BaseModel</code> 定义了三张"会自检的表格"，撑起整个框架的数据骨架。</li>
+            <li><strong>Agent</strong>（员工档案卡）：<code>name / model / instructions / functions / tool_choice / parallel_tool_calls</code>，每个字段都有默认值。</li>
+            <li><code>instructions</code> 能是<strong>字符串或函数</strong>——函数形态为第 05 章"上下文变量"埋下伏笔。</li>
+            <li><strong>Response</strong>（交接单）：<code>run()</code> 的对外产物，含 <code>messages / agent / context_variables</code>。</li>
+            <li><strong>Result</strong>（三合一信封）：工具函数对内的返回，<code>value / agent / context_variables</code> 分别对应第 04（返回文本）、06（触发交接）、05（更新上下文）章。</li>
+          </ul>
+          <p style="margin-bottom:0;">骨架已经看清。下一章，我们给空空的工具箱塞进第一件真本领——让 Agent 会用工具。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-02.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">02 · 跑通第一个 Agent</span>
+          </a>
+          <a class="next" href="chapter-04.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">04 · 让 Agent 会用工具</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

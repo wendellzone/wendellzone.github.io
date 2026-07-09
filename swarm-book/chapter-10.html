@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全景复盘与延伸 · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第十章 · Chapter 10</div>
+          <div class="ch-bignum">10</div>
+          <h1>全景复盘与延伸</h1>
+          <p class="lede">把所有拼图拼成一张全景图。回望整个 Swarm——四个文件、三大能力、一个循环——理解它为什么这么小却够用，然后看看下一步该往哪走。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>用一张全景图，看清一次 <code>run</code> 内部从头到尾发生了什么。</li>
+          <li>分模块复盘 <code>types.py</code> / <code>util.py</code> / <code>core.py</code> / <code>repl.py</code> 各自的角色。</li>
+          <li>体会 Swarm 的设计哲学：约定优于配置、交接即返回、工具即函数、无状态。</li>
+          <li>知道 Swarm 的定位与局限，以及学完之后的下一步。</li>
+        </ul>
+
+        <h2>一、一张图看懂整个 Swarm</h2>
+        <p>前面九章像是把一台机器拆成了零件逐个讲。现在，我们把它们<strong>装回去</strong>。下面这张全景图，展示了你调用一次 <code>client.run(...)</code> 后，引擎内部发生的完整流程——以及每个环节由哪个文件负责。</p>
+
+        <figure class="figure">
+          <svg width="860" height="620" viewBox="0 0 860 620" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Swarm 整体架构全景图">
+            <defs>
+              <marker id="p_h" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="p_s" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 文件角色图例 -->
+            <rect x="20" y="16" width="820" height="40" rx="8" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="30" y="41" font-family="monospace" font-size="11.5" fill="#B96A1B">core.py</text>
+            <text x="88" y="41" font-family="sans-serif" font-size="11.5" fill="#4A423A">主循环</text>
+            <text x="150" y="41" font-family="monospace" font-size="11.5" fill="#335566">util.py</text>
+            <text x="200" y="41" font-family="sans-serif" font-size="11.5" fill="#4A423A">转换&amp;合并</text>
+            <text x="285" y="41" font-family="monospace" font-size="11.5" fill="#B96A1B">types.py</text>
+            <text x="345" y="41" font-family="sans-serif" font-size="11.5" fill="#4A423A">数据结构</text>
+            <text x="420" y="41" font-family="monospace" font-size="11.5" fill="#335566">repl.py</text>
+            <text x="470" y="41" font-family="sans-serif" font-size="11.5" fill="#4A423A">交互&amp;打印</text>
+            <text x="560" y="41" font-family="sans-serif" font-size="11.5" fill="#8A7F72" font-style="italic">（文件角色图例）</text>
+
+            <!-- 用户输入 -->
+            <rect x="40" y="80" width="200" height="56" rx="10" fill="#33556615" stroke="#335566" stroke-width="1.5"/>
+            <text x="140" y="104" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">用户 messages</text>
+            <text x="140" y="123" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">repl.py 循环维护 · 第09章</text>
+
+            <!-- 主循环大框 core.py -->
+            <rect x="40" y="170" width="780" height="330" rx="16" fill="#E0913A08" stroke="#B96A1B" stroke-width="2" stroke-dasharray="6 4"/>
+            <text x="60" y="194" font-family="monospace" font-size="13" fill="#B96A1B">Swarm.run() 主循环 · core.py · 第07章</text>
+
+            <!-- 箭头 用户 → 主循环 -->
+            <path d="M140 138 L140 168" stroke="#335566" stroke-width="2" marker-end="url(#p_s)"/>
+
+            <!-- get_chat_completion -->
+            <rect x="70" y="214" width="220" height="66" rx="10" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="180" y="240" text-anchor="middle" font-family="monospace" font-size="12.5" fill="#335566">get_chat_completion</text>
+            <text x="180" y="260" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">带上 instructions + 工具清单</text>
+            <text x="180" y="274" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">去"请教"LLM</text>
+
+            <!-- LLM 六边形 -->
+            <path d="M430 200 L485 232 L485 296 L430 328 L375 296 L375 232 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="430" y="258" text-anchor="middle" font-family="serif" font-size="16" fill="#fff">LLM</text>
+            <text x="430" y="278" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">大脑</text>
+
+            <!-- function_to_json 小注 -->
+            <rect x="70" y="292" width="220" height="40" rx="8" fill="#33556610" stroke="#335566" stroke-dasharray="3 3"/>
+            <text x="180" y="311" text-anchor="middle" font-family="monospace" font-size="11" fill="#335566">function_to_json  · util.py</text>
+            <text x="180" y="325" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">让 LLM"认识"你的工具 · 第04章</text>
+
+            <!-- 箭头 completion → LLM -->
+            <path d="M292 250 L372 250" stroke="#335566" stroke-width="2" marker-end="url(#p_s)"/>
+            <text x="332" y="242" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#335566">问</text>
+
+            <!-- LLM 返回 -->
+            <path d="M430 330 L430 362" stroke="#B96A1B" stroke-width="2" marker-end="url(#p_h)"/>
+            <text x="442" y="344" text-anchor="start" font-family="sans-serif" font-size="10" fill="#B96A1B">返回：文本 或 tool_calls</text>
+
+            <!-- 判断分叉（菱形） -->
+            <path d="M430 366 L500 396 L430 426 L360 396 Z" fill="#F2B44120" stroke="#E0913A" stroke-width="1.5"/>
+            <text x="430" y="392" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4A423A">有</text>
+            <text x="430" y="406" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4A423A">tool_calls?</text>
+
+            <!-- handle_tool_calls -->
+            <rect x="560" y="214" width="230" height="140" rx="10" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="675" y="238" text-anchor="middle" font-family="monospace" font-size="12.5" fill="#335566">handle_tool_calls</text>
+            <text x="675" y="256" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">执行工具 · 第04章</text>
+            <line x1="575" y1="266" x2="775" y2="266" stroke="#D3C4A8"/>
+            <text x="575" y="284" font-family="sans-serif" font-size="10.5" fill="#4A423A">工具可返回：</text>
+            <text x="585" y="302" font-family="monospace" font-size="10.5" fill="#B96A1B">str</text>
+            <text x="620" y="302" font-family="sans-serif" font-size="10" fill="#8A7F72">普通文字结果</text>
+            <text x="585" y="320" font-family="monospace" font-size="10.5" fill="#B96A1B">Result</text>
+            <text x="640" y="320" font-family="sans-serif" font-size="10" fill="#8A7F72">带 ctx / agent</text>
+            <text x="585" y="338" font-family="monospace" font-size="10.5" fill="#B96A1B">Agent</text>
+            <text x="640" y="338" font-family="sans-serif" font-size="10" fill="#8A7F72">触发交接</text>
+
+            <!-- 是：菱形右顶点 → handle_tool_calls（向右上） -->
+            <path d="M500 396 L556 320" stroke="#335566" stroke-width="2" marker-end="url(#p_s)"/>
+            <text x="524" y="372" text-anchor="start" font-family="sans-serif" font-size="10.5" fill="#335566">是 → 执行</text>
+
+            <!-- 否：菱形下顶点 → 向下再向右到 Response -->
+            <path d="M430 426 L430 470 L596 470" stroke="#B96A1B" stroke-width="2" fill="none" marker-end="url(#p_h)"/>
+            <text x="438" y="464" text-anchor="start" font-family="sans-serif" font-size="10.5" fill="#B96A1B">否 → 结束循环，返回结果</text>
+
+            <!-- 更新记忆 / 交接 -->
+            <rect x="560" y="372" width="230" height="52" rx="10" fill="#33556610" stroke="#335566"/>
+            <text x="675" y="392" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#335566">Result.context_variables → 更新记忆（第05章）</text>
+            <text x="675" y="410" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#335566">Result.agent → 换 active_agent（第06章）</text>
+            <path d="M675 356 L675 370" stroke="#335566" stroke-width="1.5" marker-end="url(#p_s)"/>
+
+            <!-- 工具结果喂回 → 回到循环顶（从菱形左顶点出发，直角折线沿最左侧垂直车道绕回 get_chat_completion） -->
+            <path d="M360 396 L44 396 L44 262" stroke="#B96A1B" stroke-width="2" fill="none" marker-end="url(#p_h)"/>
+            <text x="200" y="366" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#B96A1B">把工具结果喂回，再问一次 LLM（循环）</text>
+            <text x="200" y="381" text-anchor="middle" font-family="sans-serif" font-size="9.5" fill="#8A7F72">带着更新后的历史 / 记忆 / Agent</text>
+
+            <!-- merge_chunk 流式注（挪到主循环框外·左下角，避开回流车道与标签） -->
+            <rect x="80" y="536" width="240" height="42" rx="8" fill="#33556610" stroke="#335566" stroke-dasharray="3 3"/>
+            <text x="200" y="554" text-anchor="middle" font-family="monospace" font-size="11" fill="#335566">merge_chunk · util.py</text>
+            <text x="200" y="569" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">流式时把碎片拼成消息 · 第08章</text>
+
+            <!-- 返回 Response -->
+            <rect x="600" y="520" width="220" height="66" rx="10" fill="#F2B44120" stroke="#E0913A" stroke-width="1.5"/>
+            <text x="710" y="546" text-anchor="middle" font-family="serif" font-size="14" fill="#1F1B16">返回 Response</text>
+            <text x="710" y="566" text-anchor="middle" font-family="monospace" font-size="10" fill="#B96A1B">messages · agent · context</text>
+            <text x="710" y="580" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">types.py · 第03章</text>
+            <!-- 否分支落点 → Response -->
+            <path d="M596 470 C 660 480, 700 495, 710 518" stroke="#B96A1B" stroke-width="2" fill="none" marker-end="url(#p_h)"/>
+          </svg>
+          <figcaption>图 10-1：Swarm 全景图——一次 <code>run</code> 就是"问 LLM → 判断有无工具 → 执行工具（可更新记忆、可交接）→ 喂回结果再问"的循环，直到没有工具调用为止，最后返回 <code>Response</code>。</figcaption>
+        </figure>
+
+        <h2>二、分模块复盘：四个文件各司其职</h2>
+        <p>整个 Swarm 核心其实就四个文件。看懂了这张分工表，你就掌握了它的全部骨架。</p>
+
+        <div class="callout note">
+          <span class="callout-title">📄 types.py —— 数据结构（骨架）</span>
+          <p>定义了贯穿全平台的几个数据类：<code>Agent</code>（名字 + 说明书 + 工具箱）、<code>Response</code>（一次 run 的完整产出）、<code>Result</code>（工具返回值的统一包装，可携带 <code>context_variables</code> 和 <code>agent</code>）。它不含逻辑，只是"约定好大家用什么形状的数据交流"。<em>详见第 03 章。</em></p>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">🔧 util.py —— 转换与合并（工具间）</span>
+          <p>三个小工具函数：<code>function_to_json</code>（把你的普通 Python 函数翻译成 LLM 能看懂的工具描述，是"工具能力"的幕后功臣）、<code>merge_fields</code> / <code>merge_chunk</code>（流式时把碎片拼成完整消息）、<code>debug_print</code>（调试打印）。<em>详见第 04、08 章。</em></p>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">⚙️ core.py —— 主循环（引擎）</span>
+          <p>整个框架的心脏。<code>run</code> 是那个"问 LLM → 执行工具 → 再问"的循环；<code>run_and_stream</code> 是它的流式版；<code>get_chat_completion</code> 负责组装请求去问 LLM；<code>handle_tool_calls</code> 负责真正执行工具、更新上下文、触发交接。<em>详见第 07、08 章。</em></p>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">💬 repl.py —— 交互与打印（外壳）</span>
+          <p>面向"人在终端聊天"的一层壳：<code>run_demo_loop</code> 是开箱即用的交互循环，<code>process_and_print_streaming_response</code> 和 <code>pretty_print_messages</code> 负责把消息漂亮地打印出来。它调用 core.py，本身不含核心逻辑。<em>详见第 09 章。</em></p>
+        </div>
+
+        <h3>三大能力，分别靠哪段代码实现</h3>
+        <ul>
+          <li><strong>工具（Tools）</strong>：<code>util.py</code> 的 <code>function_to_json</code> 让 LLM 认识函数；<code>core.py</code> 的 <code>handle_tool_calls</code> 真正执行它。<em>（第 04 章）</em></li>
+          <li><strong>上下文 / 记忆（Context）</strong>：<code>types.py</code> 的 <code>Result.context_variables</code> 承载记忆；<code>core.py</code> 靠参数名约定把它注入工具、并在循环里 <code>update</code> 累积。<em>（第 05 章）</em></li>
+          <li><strong>交接（Handoff）</strong>：工具直接<strong>返回一个 <code>Agent</code></strong> 即可；<code>handle_function_result</code> 识别到它、<code>core.py</code> 循环里换掉 <code>active_agent</code>。<em>（第 06 章）</em></li>
+        </ul>
+
+        <h2>三、设计哲学：为什么它这么小却够用</h2>
+        <p>Swarm 核心代码加起来不过几百行，却能表达"多 Agent 协作"这么复杂的概念。秘诀在于它把几个决定用得极其克制：</p>
+
+        <div class="callout tip">
+          <span class="callout-title">① 约定优于配置</span>
+          <p>想让工具拿到记忆？不用注册、不用声明——只要函数参数<strong>叫 <code>context_variables</code></strong>，引擎就自动把上下文塞进去（第05章）。用"命名约定"代替繁琐配置，代码量骤减。</p>
+        </div>
+        <div class="callout tip">
+          <span class="callout-title">② 交接即"返回一个 Agent"</span>
+          <p>没有专门的交接 API、没有路由表。想转接？让工具函数 <code>return another_agent</code> 就行（第06章）。把复杂概念压成一个最朴素的动作。</p>
+        </div>
+        <div class="callout tip">
+          <span class="callout-title">③ 工具即普通函数</span>
+          <p>你不需要继承某个基类、不需要写 schema。任何普通 Python 函数，加个文档字符串，就能当工具（第04章）——<code>function_to_json</code> 帮你自动生成 LLM 需要的描述。</p>
+        </div>
+        <div class="callout tip">
+          <span class="callout-title">④ 无状态（stateless）</span>
+          <p><code>Swarm</code> 对象自己<strong>不存</strong>任何对话状态。历史、记忆、当前 Agent 全在 <code>messages</code> / <code>context_variables</code> 里，由<strong>调用者</strong>维护并逐轮传入（第09章）。这让 Swarm 天然易测、易并发、易嵌入任何应用。</p>
+        </div>
+
+        <h2>四、延伸：Swarm 的定位与下一步</h2>
+        <div class="callout warn">
+          <span class="callout-title">重要：Swarm 是教育性质，非生产就绪</span>
+          <p>OpenAI 明确把 Swarm 定位为<strong>教学与实验性质</strong>的框架，用来展示"多 Agent 编排"的思想，<strong>不建议直接用于生产</strong>。它的官方"精神续作"是功能更完整的 <strong>OpenAI Agents SDK</strong>。你在本书学到的原理（工具、上下文、交接、循环）是通用的，换到更成熟的框架里同样成立。</p>
+        </div>
+
+        <p>学完本书，推荐的下一步：</p>
+        <ul>
+          <li><strong>读更复杂的官方例子</strong>：仓库 <code>examples/</code> 下有 <code>airline</code>（航空客服）、<code>customer_service</code>（客户服务）等更贴近真实的多 Agent 应用，本书未覆盖，非常适合作为进阶练习。</li>
+          <li><strong>自己动手写一个多 Agent 应用</strong>：比如"接待 Agent + 专家 Agent"，亲手实现一次交接，把三大能力串起来。</li>
+          <li><strong>转向生产级框架</strong>：如需做真实产品，了解 OpenAI Agents SDK 或其他成熟的 Agent 框架。</li>
+          <li><strong>回看源码</strong>：Swarm 官方仓库 <a href="https://github.com/openai/swarm" target="_blank" rel="noopener">https://github.com/openai/swarm</a>——现在的你，已经能通读它的全部核心代码了。</li>
+        </ul>
+
+        <div class="callout tip">
+          <span class="callout-title">🐝 想再深入一层？读《Swarm 深度解析》</span>
+          <p>本书讲清了"是什么、怎么写"。如果你还想知道<strong>为什么这么设计、真实项目里怎么用、我能怎么改</strong>，可以接着读进阶续作——<a href="../swarm-book-deep/index.html"><strong>《Swarm 深度解析》</strong></a>。它分三部分：<strong>设计哲学与权衡</strong>（无状态、deepcopy、约定优于配置、handoff 哲学……）、<strong>进阶示例与实战</strong>（分诊编排、接数据库、RAG、评测）、<strong>动手改造</strong>（加中间件、换模型、亲手写一个 mini-Swarm）。读完本书正好无缝衔接。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>学完这个，我能做真实产品吗？</summary>
+            <div class="faq-body">
+              <p>你学到的<strong>原理是通用且扎实的</strong>——工具调用、上下文注入、Agent 交接、run 循环，几乎所有 Agent 框架都是这套思路的变体。但<strong>Swarm 这个框架本身</strong>官方不建议直接上生产（缺少重试、持久化、可观测性、并发控制等生产必需的能力）。做真实产品时，建议把这里学到的心智模型，迁移到 OpenAI Agents SDK 等更成熟的框架上。简单说：<strong>原理拿走，框架换成生产级的。</strong></p>
+            </div>
+          </details>
+          <details>
+            <summary>下一步具体学什么？</summary>
+            <div class="faq-body">
+              <p>三条路任选：①<strong>广度</strong>——去读 <code>examples/</code> 里的 airline、customer_service，看多 Agent 在真实场景怎么分工；②<strong>深度</strong>——自己写一个带 2~3 个 Agent、能互相交接的小应用，把工具/上下文/交接全用一遍；③<strong>迁移</strong>——学 OpenAI Agents SDK，把本书的概念对应到生产级 API 上。建议先做②，动手一遍胜过读十遍。</p>
+            </div>
+          </details>
+          <details>
+            <summary>为什么一个"玩具框架"值得花整本书去读？</summary>
+            <div class="faq-body">
+              <p>正因为它<strong>小</strong>。生产级框架动辄上万行、层层抽象，初学者很难看清"Agent 到底是怎么转起来的"。Swarm 把最核心的思想浓缩在几百行里，几乎没有噪音——它是理解 Agent 原理的<strong>最佳教材</strong>。读懂了它，再看任何复杂框架，你都能一眼认出"哦，这不就是那个 run 循环 / 那个交接吗"。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>一次 <code>run</code> = "问 LLM → 判断有无 tool_calls → 执行工具（可更新记忆、可交接）→ 喂回再问"的循环，直到无工具调用，返回 <code>Response</code>。</li>
+            <li>四个文件各司其职：<strong>types.py</strong>（数据）、<strong>util.py</strong>（转换&amp;合并）、<strong>core.py</strong>（循环）、<strong>repl.py</strong>（交互）。</li>
+            <li>三大能力：工具（function_to_json + handle_tool_calls）、上下文（context_variables）、交接（返回 Agent）。</li>
+            <li>设计哲学：<strong>约定优于配置、交接即返回一个 Agent、工具即普通函数、无状态</strong>——小而够用。</li>
+            <li>Swarm 是教育性质、非生产就绪；官方续作是 OpenAI Agents SDK。</li>
+          </ul>
+        </div>
+
+        <div class="callout analogy">
+          <span class="callout-title">写在最后 · 恭喜你读完全书 🐝</span>
+          <p>从"LLM 只会接话"，到亲手拆开 <code>run</code> 循环、看懂流式碎片如何拼接、理解一群 Agent 如何像蜂群般协作——你已经走完了从<strong>零基础</strong>到<strong>读透一个 Agent 框架源码</strong>的全程。<br><br>
+          Swarm 之所以叫"蜂群"，是因为再复杂的协作，也不过是许多简单个体、遵循几条简单规则、一次次重复同一个循环的结果。你现在手里已经有了这几条规则。去写属于你自己的第一窝蜜蜂吧——祝你玩得开心。🍯</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-09.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">09 · 交互式循环</span>
+          </a>
+          <a class="next" href="index.html">
+            <span class="nav-dir">全书完 ↩</span>
+            <span class="nav-label">返回 · 封面与目录</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

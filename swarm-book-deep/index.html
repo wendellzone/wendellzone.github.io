@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swarm 深度解析 · 设计哲学 · 实战 · 改造</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <div class="cover">
+    <section class="cover-hero">
+      <svg width="96" height="96" viewBox="0 0 96 96" fill="none" style="margin:0 auto;">
+        <path d="M48 6 L82 26 L82 66 L48 86 L14 66 L14 26 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="2"/>
+        <path d="M48 20 L70 33 L70 59 L48 72 L26 59 L26 33 Z" fill="#E0913A" opacity="0.7"/>
+        <text x="48" y="62" text-anchor="middle" font-size="38">🐝</text>
+      </svg>
+      <h1>Swarm 深度解析</h1>
+      <p class="subtitle">《Swarm 精读》的进阶续作——不再讲"怎么写"，而是讲清它<strong>为什么这么设计</strong>、真实项目里<strong>怎么用</strong>、以及你能<strong>怎么改</strong>。</p>
+      <div class="tags">
+        <span class="tag">设计哲学与权衡</span>
+        <span class="tag">进阶示例实战</span>
+        <span class="tag">动手改造</span>
+        <span class="tag">承接入门版</span>
+      </div>
+    </section>
+
+    <section class="reading-guide" style="margin-top:32px;">
+      <h2 style="margin-top:0;">先读入门版，再读这里</h2>
+      <p>这本深度解析<strong>默认你已读完入门版</strong>《Swarm 精读》，掌握了 LLM / function calling / Agent / <code>run</code> 主循环 / handoff / context_variables 等基础。若还没读，建议先从入门版开始，回报更大。</p>
+      <p style="margin-bottom:0;"><a href="../swarm-book/index.html" style="font-weight:600;">↩ 前往入门版《Swarm 精读》</a></p>
+    </section>
+
+    <h2 style="margin-top:48px;">目录</h2>
+
+    <h3 style="color:var(--honey-deep);">第一部分 · 设计哲学与权衡</h3>
+    <div class="toc">
+      <a href="chapter-00.html">
+        <span class="toc-num">00</span>
+        <div class="toc-text"><h3>前言：从入门到深入</h3><p>这本书接在哪里、要走多深、新增的阅读符号。</p></div>
+      </a>
+      <a href="chapter-01.html">
+        <span class="toc-num">01</span>
+        <div class="toc-text"><h3>无状态设计</h3><p>引擎为何什么都不记，状态放哪、谁维护、划算在哪。</p></div>
+      </a>
+      <a href="chapter-02.html">
+        <span class="toc-num">02</span>
+        <div class="toc-text"><h3>深拷贝与副作用边界</h3><p>run() 开头为何 deepcopy，不这么做会弄坏谁的数据。</p></div>
+      </a>
+      <a href="chapter-03.html">
+        <span class="toc-num">03</span>
+        <div class="toc-text"><h3>约定优于配置</h3><p>context_variables 靠参数名注入、对 LLM 隐藏的取舍。</p></div>
+      </a>
+      <a href="chapter-04.html">
+        <span class="toc-num">04</span>
+        <div class="toc-text"><h3>handoff 的极简哲学</h3><p>交接=返回一个 Agent，对比"显式路由表"方案。</p></div>
+      </a>
+      <a href="chapter-05.html">
+        <span class="toc-num">05</span>
+        <div class="toc-text"><h3>主循环的边界与健壮性</h3><p>max_turns、工具找不到、串行 vs 并行工具调用。</p></div>
+      </a>
+      <a href="chapter-06.html">
+        <span class="toc-num">06</span>
+        <div class="toc-text"><h3>与生产框架的对比</h3><p>Swarm vs OpenAI Agents SDK / LangGraph 的定位与局限。</p></div>
+      </a>
+    </div>
+
+    <h3 style="color:var(--honey-deep);margin-top:36px;">第二部分 · 进阶示例与实战</h3>
+    <div class="toc">
+      <a href="chapter-07.html">
+        <span class="toc-num">07</span>
+        <div class="toc-text"><h3>分诊编排实战</h3><p>airline 三层分诊 + 双向 handoff + 策略文档当 prompt。</p></div>
+      </a>
+      <a href="chapter-08.html">
+        <span class="toc-num">08</span>
+        <div class="toc-text"><h3>给 Agent 接真实数据库</h3><p>personal_shopper 的 SQLite：防注入、事务、幂等写。</p></div>
+      </a>
+      <a href="chapter-09.html">
+        <span class="toc-num">09</span>
+        <div class="toc-text"><h3>让 Agent 会查资料（RAG）</h3><p>support_bot 的向量检索：离线备料 vs 在线查询。</p></div>
+      </a>
+      <a href="chapter-10.html">
+        <span class="toc-num">10</span>
+        <div class="toc-text"><h3>怎么给 Agent 做评测</h3><p>execute_tools=False 取意图、pytest 参数化、LLM 当裁判。</p></div>
+      </a>
+    </div>
+
+    <h3 style="color:var(--honey-deep);margin-top:36px;">第三部分 · 动手改造</h3>
+    <div class="toc">
+      <a href="chapter-11.html">
+        <span class="toc-num">11</span>
+        <div class="toc-text"><h3>改造 Swarm 与 mini-Swarm</h3><p>加日志/重试、接非 OpenAI 模型、亲手实现一个 run 循环。</p></div>
+      </a>
+      <a href="chapter-12.html">
+        <span class="toc-num">12</span>
+        <div class="toc-text"><h3>全景收束与生产路线图</h3><p>哲学+实战+改造总回顾，通往真实生产。</p></div>
+      </a>
+    </div>
+
+    <section class="reading-guide" style="margin-top:48px;">
+      <h2>阅读指南</h2>
+      <ul>
+        <li><strong>第一、三部分建议顺读</strong>；第二部分（实战四章）相对独立，可挑感兴趣的先看。</li>
+        <li><strong>延伸盒（🧭）随缘看</strong>：给用过其他框架的读者的横向对比，跳过不影响主线。</li>
+        <li><strong>键盘 ← / →</strong> 翻章；手机点左上角按钮展开导航。</li>
+        <li>实战篇涉及外部依赖（数据库 / 向量库 / API Key）时会明确标注；只读逻辑无需安装。</li>
+      </ul>
+      <p style="margin-top:18px;"><a href="chapter-00.html" style="font-weight:600;">→ 从「前言」开始阅读</a></p>
+    </section>
+
+    <p style="text-align:center;color:var(--ink-faint);font-size:13px;margin-top:60px;">
+      基于 <a href="https://github.com/openai/swarm" target="_blank" rel="noopener">OpenAI Swarm</a> 源码精读 · 《Swarm 精读》进阶续作 · 仅供学习交流
+    </p>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跑通第一个 Agent · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第二章 · Chapter 02</div>
+          <div class="ch-bignum">02</div>
+          <h1>跑通第一个 Agent</h1>
+          <p class="lede">上一章全是大白话。这一章，我们用 5 行真代码，亲手让一个 Agent 活过来，并逐字看懂每一行到底在干什么。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>把 <strong>Swarm</strong> 装到你的电脑上，并配好 <strong>API Key</strong>。</li>
+          <li>逐行读懂官方最小示例 <code>bare_minimum.py</code>——总共只有 5 行有效代码。</li>
+          <li>搞清楚 <code>Swarm()</code>、<code>Agent(...)</code>、<code>messages</code>、<code>client.run(...)</code> 各自扮演什么角色。</li>
+          <li>亲手运行它，看到 LLM 回你一句问候，并知道那句话是怎么"取出来"的。</li>
+        </ul>
+
+        <h2>一、准备工作：装好 Swarm、配好钥匙</h2>
+        <p>动手之前只需两步。第一步，把 Swarm 这个库装进 Python 环境。Swarm 目前没有发布到 PyPI，所以我们直接从 GitHub 仓库安装：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">终端 · 安装 Swarm</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash">pip install git+https://github.com/openai/swarm.git</code></pre>
+        </div>
+
+        <div class="callout note">
+          <span class="callout-title">这行命令在做什么</span>
+          <p><code>pip</code> 是 Python 的"应用商店安装器"。<code>git+https://...</code> 告诉它："别去官方商店找了，直接从这个 GitHub 地址把代码拉下来装上。"装完，你的 Python 里就能 <code>import swarm</code> 了。</p>
+        </div>
+
+        <p>第二步，配置 <strong>OpenAI API Key</strong>。Swarm 默认用 OpenAI 的模型（<code>gpt-4o</code>）来当 Agent 的"大脑"，而访问 OpenAI 需要一把"钥匙"来证明你的身份、并从你的账户扣费。你在 OpenAI 官网申请到一串以 <code>sk-</code> 开头的钥匙后，把它设成一个<strong>环境变量</strong>：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">终端 · 配置 API Key</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash">export OPENAI_API_KEY="sk-你自己的密钥"</code></pre>
+        </div>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：门禁卡</span>
+          <p>API Key 就像进公司大楼的<strong>门禁卡</strong>。Swarm 每次去"请教"OpenAI 的大脑时，都要刷一下这张卡。<code>export</code> 相当于把卡放进你终端这个"口袋"，之后同一个终端里跑的程序都能自动摸到它——你的代码里<strong>完全不用</strong>写钥匙，既省事又安全。</p>
+        </div>
+
+        <div class="callout warn">
+          <span class="callout-title">小心</span>
+          <p>API Key 是要花钱的（按调用量计费），而且等同于你账户的密码。<strong>千万不要</strong>把它直接写进代码、或提交到 GitHub。用环境变量正是为了避免这种泄露。</p>
+        </div>
+
+        <h2>二、先看全貌：整个程序就这么点</h2>
+        <p>准备就绪。下面是 Swarm 官方仓库里最小的一个例子，路径是 <code>examples/basic/bare_minimum.py</code>（<em>bare minimum</em> 就是"最低限度"的意思）。它把一个 Agent 从创建到跑起来所需的一切，压缩到了极致：</p>
+
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">bare_minimum.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+agent = Agent(
+    name="Agent",
+    instructions="You are a helpful agent.",
+)
+
+messages = [{"role": "user", "content": "Hi!"}]
+response = client.run(agent=agent, messages=messages)
+
+print(response.messages[-1]["content"])</code></pre>
+        </div>
+
+        <p>去掉空行，真正干活的只有 5 处：<strong>建引擎、建 Agent、写消息、跑一次、取结果</strong>。我们一个一个来拆。</p>
+
+        <h2>三、逐行精读</h2>
+
+        <h3>第 1 行：把工具从库里拿出来</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">import</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent</code></pre>
+        </div>
+        <p>这行从我们刚装好的 <code>swarm</code> 库里，取出两样东西：<code>Swarm</code> 和 <code>Agent</code>。你可能会好奇：一个库里明明有那么多代码，凭什么这两个名字就能直接拿出来用？</p>
+        <p>答案藏在库的"入口文件" <code>swarm/__init__.py</code> 里，它只有短短几行：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">swarm/__init__.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from .core import Swarm            # 从 core.py 里拿出引擎类 Swarm
+from .types import Agent, Response  # 从 types.py 里拿出数据类 Agent、Response
+
+__all__ = ["Swarm", "Agent", "Response"]  # 声明“对外只公开这三个名字”</code></pre>
+        </div>
+        <p><code>__init__.py</code> 就像一家公司的<strong>前台</strong>：它把散落在各个房间（<code>core.py</code>、<code>types.py</code>）里的重要人物，集中登记在门口。于是外人（我们）只要说一句 <code>from swarm import Swarm, Agent</code>，前台就能直接把人叫出来，我们不必知道他们具体坐在哪个房间。<code>__all__</code> 这份名单则明确告诉别人：这个库对外正式提供的就是 <code>Swarm</code>、<code>Agent</code>、<code>Response</code> 三样。</p>
+
+        <h3>第 2 行：创建引擎 <code>client = Swarm()</code></h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">创建引擎</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">client = Swarm()</code></pre>
+        </div>
+        <p><code>Swarm()</code> 造出一个"引擎"对象，我们给它起名叫 <code>client</code>。回忆第 01 章那个"会自己转的循环"——<strong>它就住在这个引擎里</strong>。之后我们要让 Agent 干活，都得通过这个 <code>client</code> 下命令（第 4 行的 <code>client.run(...)</code>）。</p>
+        <div class="callout analogy">
+          <span class="callout-title">类比：招来一位调度主管</span>
+          <p><code>client</code> 好比公司里的<strong>调度主管</strong>：他手里握着那本"工作流程手册"（自动循环）和那把"门禁卡"（自动读取环境变量里的 API Key）。你把员工（Agent）和任务（messages）交给他，他负责一趟趟去请示大脑、执行工具、直到把活办完。</p>
+        </div>
+        <p>注意括号里是空的 <code>Swarm()</code>——我们什么参数都没传。这说明它有一套开箱即用的默认配置：默认它会自己去连 OpenAI，并自动从环境变量 <code>OPENAI_API_KEY</code> 里读你刚才配的钥匙。<strong>不这么写会怎样？</strong> 如果你没配环境变量、又不传自定义客户端，等真正调用大脑时就会因为"没钥匙"而报错。</p>
+
+        <h3>第 3 步：创建一个最简 Agent</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">创建 Agent</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">agent = Agent(
+    name="Agent",                             # 给这个员工起个名字
+    instructions="You are a helpful agent.",  # 岗位说明书：你是一个乐于助人的助手
+)</code></pre>
+        </div>
+        <p>这就是我们的第一个 Agent。它是全书最"朴素"的一个——<strong>只有一份岗位说明书，连工具箱都是空的</strong>。回顾第 01 章的公式：<em>Agent = 说明书 + 工具箱 + 循环</em>。这里的循环由 <code>client</code> 提供，工具箱这次留空，所以真正需要我们填的只有说明书。</p>
+        <ul>
+          <li><code>name="Agent"</code>：员工的名字。这里就直白地叫它 "Agent"。名字在多 Agent 协作、看日志时很有用，但对这个单人示例影响不大。</li>
+          <li><code>instructions="You are a helpful agent."</code>：<strong>这就是第 01 章说的 system prompt（岗位说明书）</strong>。它会作为 <code>system</code> 角色的消息，排在对话最前面，告诉大脑"你该以什么身份、什么口吻回答"。</li>
+        </ul>
+        <div class="callout tip">
+          <span class="callout-title">instructions 就是岗位说明书</span>
+          <p>你没看错——所谓 <code>instructions</code>，在底层就是拼进消息列表最前面的那条 <code>system</code> 消息。把它写成"你是一个耐心的客服"，Agent 就会像客服；写成"你只用文言文回答"，它就满口之乎者也。<strong>这一个字段，就决定了 Agent 的人设与行为基调。</strong></p>
+        </div>
+        <p>你也许注意到我们没写 <code>model</code>、也没写 <code>functions</code>。这是因为 <code>Agent</code> 的这些字段都有<strong>默认值</strong>（模型默认 <code>gpt-4o</code>，工具箱默认空列表）。至于这些字段的完整定义，正是下一章 <code>types.py</code> 的主角，这里先按下不表。</p>
+
+        <h3>第 4 步：写好要说的话</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">准备对话</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">messages = [{"role": "user", "content": "Hi!"}]</code></pre>
+        </div>
+        <p>还记得第 01 章说的吗——我们和大脑打交道，靠的是一份<strong>消息列表</strong>。这里就是它：一个 Python 列表，里面装着一条消息。每条消息是一个字典，有两个关键字段：</p>
+        <ul>
+          <li><code>"role": "user"</code>：这条话是"用户"（也就是你）说的。</li>
+          <li><code>"content": "Hi!"</code>：话的内容——一句简单的"你好！"。</li>
+        </ul>
+        <p>为什么要用<strong>列表</strong>装、而不是直接传一句字符串？因为对话天生是<strong>多轮、有先后顺序</strong>的：user 说一句、assistant 回一句、user 再追问……全都要按顺序记在这个列表里，大脑才能读懂上下文。现在只有一句，是因为对话刚刚开始。</p>
+
+        <h3>第 5 步：启动主循环 <code>client.run(...)</code></h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">跑起来</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">response = client.run(agent=agent, messages=messages)</code></pre>
+        </div>
+        <p>高潮来了。这一行把前面备好的三样东西凑到一起，正式开跑：</p>
+        <ul>
+          <li><code>agent=agent</code>：让哪个员工上工。</li>
+          <li><code>messages=messages</code>：把当前的对话历史交给他。</li>
+        </ul>
+        <p>调用 <code>run</code> 之后，第 01 章那个"自动循环"就在引擎内部转起来了：它把 <code>instructions</code> 拼成 system 消息、连同 <code>messages</code> 一起发给大脑，拿回回复；如果 Agent 想调用工具就自动执行再问一轮……直到大脑给出最终答复。整个过程结束后，它把结果打包成一个 <code>response</code> 交还给我们。</p>
+        <div class="callout note">
+          <span class="callout-title">这个 response 是什么？</span>
+          <p><code>run()</code> 返回的不是一句普通字符串，而是一个 <strong><code>Response</code> 对象</strong>——一张"办公交接单"，里面装着更新后的完整对话历史（<code>messages</code>）、当前接手的 Agent、以及上下文变量。它的确切结构，我们下一章讲 <code>types.py</code> 时会逐字拆开。</p>
+        </div>
+
+        <h3>第 6 步：取出最后一句回复</h3>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">打印结果</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">print(response.messages[-1]["content"])</code></pre>
+        </div>
+        <p>这一行看着有点绕，我们从里往外拆：</p>
+        <ul>
+          <li><code>response.messages</code>：从交接单里取出<strong>完整的对话历史列表</strong>。此时它比我们最初的 <code>messages</code> 更长了——因为大脑的回复也被追加了进去。</li>
+          <li><code>[-1]</code>：Python 里 <code>-1</code> 表示"倒数第一个"，也就是列表里<strong>最后一条</strong>消息。对话历史的最后一条，正是大脑刚生成的那句回复。</li>
+          <li><code>["content"]</code>：从那条消息字典里，取出 <code>content</code> 字段，也就是回复的<strong>纯文字内容</strong>。</li>
+        </ul>
+        <p>合起来就是：<em>"把这次对话的最后一句话的文字内容打印出来。"</em> 为什么不直接打印整个 <code>response</code>？因为那样会连角色、工具调用记录等一堆结构一起吐出来，看着乱。我们只关心大脑最终对我们说的那句人话，所以精准地取 <code>messages[-1]["content"]</code>。</p>
+
+        <h2>四、亲手运行，见证 Agent 说话</h2>
+        <p>把上面的完整代码保存成一个文件，比如 <code>hello.py</code>，确认已经装好 Swarm、配好 <code>OPENAI_API_KEY</code>，然后在终端里运行：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">终端 · 运行</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-bash">python hello.py</code></pre>
+        </div>
+        <p>稍等一两秒（这段时间就是引擎在跟 OpenAI 的大脑通信），你会在终端看到类似这样的一句友好问候：</p>
+        <div class="output-block">
+          <div class="out-label">终端输出</div>
+          <pre>Hi there! How can I assist you today?</pre>
+        </div>
+        <div class="callout note">
+          <span class="callout-title">你的输出可能略有不同</span>
+          <p>LLM 的回答带有随机性，每次跑出来的措辞未必一模一样——可能是 "Hello! How can I help you?"，也可能换个说法。这很正常，只要是一句得体、乐于助人的问候，就说明你的第一个 Agent 已经成功跑通了！🎉</p>
+        </div>
+        <p>就这样，你已经完整走了一遍 Agent 的生命周期：<strong>建引擎 → 建 Agent → 递话 → 跑循环 → 取回复</strong>。虽然这个 Agent 还只会"说话"、不会"做事"（因为工具箱是空的），但骨架已经立起来了。从第 04 章起，我们就给它往工具箱里塞真本领。</p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>为什么 messages 要用一个"列表"来装，不能直接传字符串？</summary>
+            <div class="faq-body">
+              <p>因为对话本质上是<strong>一串按顺序排列的消息</strong>：谁先说、谁后说、各自扮演什么角色（user/assistant/system），都必须保留下来，大脑才能理解上下文。用列表正好能有序地存放多条消息。这次只有一句，是因为对话刚开头；等到多轮问答时，这个列表会越来越长，每一轮的问和答都追加进去。</p>
+            </div>
+          </details>
+          <details>
+            <summary>run() 返回的 response 里到底有什么？</summary>
+            <div class="faq-body">
+              <p>它是一个 <code>Response</code> 对象，主要装着三样东西：<code>messages</code>（本轮结束后<strong>完整的</strong>对话历史，包含大脑的新回复）、<code>agent</code>（当前接手的 Agent，多 Agent 交接时会变）、<code>context_variables</code>（上下文变量）。本章我们只用到了 <code>messages</code>。它的完整字段定义，正是<strong>下一章</strong> <code>types.py</code> 要讲的内容。</p>
+            </div>
+          </details>
+          <details>
+            <summary>我没写 model，那这个 Agent 用的是哪个模型？</summary>
+            <div class="faq-body">
+              <p>用的是默认模型 <code>gpt-4o</code>。<code>Agent</code> 这个数据类给 <code>model</code> 字段预设了默认值，所以你不写它也能跑。如果想换模型（比如换成更便宜的），只要在创建 Agent 时多写一句 <code>model="gpt-4o-mini"</code> 即可。这些字段的默认值下一章会一一说明。</p>
+            </div>
+          </details>
+          <details>
+            <summary>报错说找不到 API Key 怎么办？</summary>
+            <div class="faq-body">
+              <p>八成是环境变量没配好，或者你换了一个新终端窗口（<code>export</code> 只对当前终端有效）。重新在<strong>运行程序的那个终端</strong>里执行一遍 <code>export OPENAI_API_KEY="sk-..."</code>，再跑程序即可。想一劳永逸的话，可以把这行写进 <code>~/.zshrc</code> 或 <code>~/.bashrc</code>。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>安装：<code>pip install git+https://github.com/openai/swarm.git</code>；配钥匙：<code>export OPENAI_API_KEY="sk-..."</code>。</li>
+            <li><code>client = Swarm()</code> 造出<strong>引擎</strong>，第 01 章的自动循环就住在里面。</li>
+            <li><code>Agent(name=..., instructions=...)</code> 造出一个最简 Agent，<code>instructions</code> 就是它的 <strong>system prompt（岗位说明书）</strong>。</li>
+            <li><code>messages</code> 是<strong>有序的消息列表</strong>，装着这轮对话的历史。</li>
+            <li><code>client.run(agent, messages)</code> 启动主循环，返回一个 <code>Response</code> 对象；<code>response.messages[-1]["content"]</code> 取出最后一句回复的文字。</li>
+          </ul>
+          <p style="margin-bottom:0;">你已经跑通了第一个 Agent。但 <code>Agent</code>、<code>Response</code> 这些"数据类"内部究竟长什么样？下一章，我们翻开 <code>types.py</code>，把整个框架的"数据骨架"看个通透。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-01.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">01 · 从零理解 Agent</span>
+          </a>
+          <a class="next" href="chapter-03.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">03 · 数据模型骨架</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

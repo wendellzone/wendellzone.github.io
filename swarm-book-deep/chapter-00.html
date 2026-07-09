@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>前言：从入门到深入 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">前言 · Preface</div>
+          <div class="ch-bignum">00</div>
+          <h1>前言：从入门到深入</h1>
+          <p class="lede">你已经读完了入门版，能跑通 Agent、看懂主循环。这本书要回答一个更深的问题——它<strong>为什么</strong>是这样设计的，以及在真实项目里<strong>怎么用</strong>。</p>
+        </header>
+
+        <h2>这本书接在哪里</h2>
+        <p>这是《Swarm 精读》的<strong>进阶续作</strong>。入门版带你从零理解 LLM、function calling、Agent，并逐行读完了核心库（<code>core.py</code> / <code>types.py</code> / <code>util.py</code> / <code>repl.py</code>）和 <code>examples/basic</code> 五个示例。</p>
+        <p>如果你还没读入门版，强烈建议先去读——本书<strong>默认你已经掌握</strong>下面这些概念，不再重复铺垫：</p>
+        <ul class="goals">
+          <li>LLM 的"对话补全"、function calling 的"点单—做菜—上菜"三步。</li>
+          <li>Agent = 说明书（instructions）+ 工具箱（functions）+ 自动循环（<code>run</code>）。</li>
+          <li><code>run()</code> 主循环：问 LLM → 判断有无 <code>tool_calls</code> → 执行工具 → 喂回 → 再问，直到没有工具调用。</li>
+          <li>handoff（交接）= 工具函数 <code>return</code> 一个 Agent；context_variables = 随身档案袋。</li>
+        </ul>
+        <div class="callout note">
+          <span class="callout-title">随时可以回头</span>
+          <p>左侧导航底部有「↩ 返回入门版」的链接。任何时候概念记不清了，都可以跳回去复习对应章节，再回到这里。</p>
+        </div>
+
+        <h2>这本书要带你走多深</h2>
+        <p>入门版回答的是"<strong>是什么、怎么写</strong>"；深度版回答的是"<strong>为什么这么设计、真实项目里怎么用、我能怎么改</strong>"。全书三部分：</p>
+
+        <h3>第一部分 · 设计哲学与权衡（第 01–06 章）</h3>
+        <p>把 Swarm 那几百行代码背后的<strong>设计决策</strong>一条条摊开来看：为什么它是"无状态"的？<code>run()</code> 开头为什么要 <code>deepcopy</code>？为什么 context_variables 靠"参数名约定"而不是显式声明？handoff 为什么设计成"返回一个 Agent"而不是配一张路由表？每一条我们都会问：<strong>换一种做法会怎样、代价是什么。</strong></p>
+
+        <h3>第二部分 · 进阶示例与实战（第 07–10 章）</h3>
+        <p>离开玩具示例，精读 <code>examples/</code> 里更接近真实项目的四个例子：航空客服的<strong>三层分诊编排</strong>、个人导购的<strong>真实数据库读写</strong>、帮助中心的 <strong>RAG 向量检索问答</strong>、以及怎么给 Agent <strong>做自动化评测（eval）</strong>。</p>
+
+        <h3>第三部分 · 动手改造（第 11–12 章）</h3>
+        <p>最后教你<strong>亲手改造</strong>：给 Swarm 加日志/重试、接入非 OpenAI 的模型，甚至从零把 <code>run</code> 循环自己写一遍（mini-Swarm）。然后做一次全景收束，给出通往真实生产的路线图。</p>
+
+        <h2>本书的一些新符号</h2>
+        <p>除了沿用入门版的类比框、提示框、代码块，深度版新增了几种小组件，帮你快速抓住重点：</p>
+
+        <div class="tradeoff">
+          <div class="tradeoff-title">设计权衡盒：一眼看清"这么做 vs 换种做法"</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">Swarm 的选择</div>
+              <p>展示 Swarm 实际采用的做法，以及它换来的好处。</p>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">另一种做法</div>
+              <p>展示常见的替代方案，以及它的代价——帮你理解"为什么不那样做"。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱盒</span>
+          <p>标注真实使用中容易踩的坑——例如"忘了把 <code>response.messages</code> 赋回去，Agent 就失忆了"这类。</p>
+        </div>
+
+        <details class="deepbox">
+          <summary>延伸盒（可折叠）：给用过其他框架的读者</summary>
+          <div class="deepbox-body">
+            <p>这种盒子是<strong>可选阅读</strong>。如果你用过 LangChain、LangGraph、OpenAI Agents SDK 等框架，这里会给出横向对比；如果你没用过，<strong>直接跳过完全不影响主线</strong>。默认折叠，想看再点开。</p>
+          </div>
+        </details>
+
+        <h2>怎么读最省力</h2>
+        <div class="callout tip">
+          <span class="callout-title">阅读建议</span>
+          <p>1. <strong>第一、三部分可顺读</strong>；第二部分（实战）四章相对独立，可挑你最感兴趣的先看。<br>
+             2. <strong>延伸盒（🧭）随缘看</strong>，不看不影响主线。<br>
+             3. 实战篇涉及外部依赖（数据库、Qdrant 向量库、API Key），代码能否真跑我们会明确标注；只想读懂逻辑的话，不装这些也能看明白。</p>
+        </div>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>没读入门版，能直接读这本吗？</summary>
+            <div class="faq-body">
+              <p>不建议。本书跳过了所有基础概念的铺垫，直接讨论"为什么这么设计"。如果 <code>run</code> 主循环、handoff、context_variables 对你还是新词，先花点时间读入门版，回报会大得多。</p>
+            </div>
+          </details>
+          <details>
+            <summary>这本书会讲和入门版重复的代码吗？</summary>
+            <div class="faq-body">
+              <p>会再次引用同一段源码，但<strong>讲的角度完全不同</strong>。入门版讲"这行代码做了什么"，深度版讲"这行代码为什么这么写、去掉它会出什么问题、生产框架会怎么改"。同一段 <code>core.py</code>，两本书读出的东西不一样。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>本书是入门版的<strong>进阶续作</strong>，默认你已懂 Agent 基础与 <code>run</code> 主循环。</li>
+            <li>三部分：<strong>设计哲学与权衡</strong>、<strong>进阶示例与实战</strong>、<strong>动手改造</strong>。</li>
+            <li>新增了<strong>权衡盒 / 陷阱盒 / 延伸盒</strong>三种小组件帮你抓重点。</li>
+            <li>随时可从左侧导航「↩ 返回入门版」跳回去复习。</li>
+          </ul>
+          <p style="margin-bottom:0;">准备好了吗？第一部分从一个最根本的设计决策开始：Swarm 为什么是"无状态"的。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="index.html">
+            <span class="nav-dir">← 上一页</span>
+            <span class="nav-label">封面与目录</span>
+          </a>
+          <a class="next" href="chapter-01.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">01 · 无状态设计</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

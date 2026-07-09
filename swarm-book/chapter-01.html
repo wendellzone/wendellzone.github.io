@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>从零理解 Agent · Swarm 图文电子书</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="18" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 精读<span class="brand-sub">从零入门 Agent 开发</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言与如何阅读</span></a>
+        <div class="nav-group-title">概念与上手</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>从零理解 Agent</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>跑通第一个 Agent</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>数据模型骨架</span></a>
+        <div class="nav-group-title">核心能力</div>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>让 Agent 会用工具</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>上下文变量</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>Agent 交接 handoff</span></a>
+        <div class="nav-group-title">引擎内部</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>引擎核心：run 主循环</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>流式输出</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>交互式循环</span></a>
+        <div class="nav-group-title">收尾</div>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>全景复盘与延伸</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#F2B441" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#B96A1B" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第一章 · Chapter 01</div>
+          <div class="ch-bignum">01</div>
+          <h1>从零理解 Agent</h1>
+          <p class="lede">不写一行代码，我们先把三个绕不开的词——LLM、function calling、Agent——用大白话彻底讲明白。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>知道 <strong>LLM（大语言模型）</strong>到底是什么、它的"输入输出"长什么样。</li>
+          <li>理解一个致命局限：LLM 只会"说话"，不会"做事"。</li>
+          <li>搞懂 <strong>function calling（函数调用）</strong>如何给 LLM 装上"手脚"。</li>
+          <li>明白 <strong>Agent（智能体）</strong> = LLM + 工具 + 说明书 + 一个不停转的循环。</li>
+        </ul>
+
+        <h2>一、LLM：一个只会"接话"的超级大脑</h2>
+        <p>你一定用过 ChatGPT。它背后的东西叫 <strong>LLM（Large Language Model，大语言模型）</strong>。抛开所有数学，你只需要记住它的本质：</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：接龙高手</span>
+          <p>LLM 就像一个读遍了全世界文字、极其擅长"文字接龙"的大脑。你给它一段话，它就<strong>猜下一个最合理的词</strong>，一个接一个地往下写，直到写完。它不"知道"真相，只是把话接得极其像人。</p>
+        </div>
+
+        <p>在程序里，我们和 LLM 打交道的方式非常固定：我们发一份<strong>消息列表</strong>过去，它回一条<strong>新消息</strong>。消息列表里每条消息都有一个"角色（role）"：</p>
+        <ul>
+          <li><code>system</code>（系统）：给 LLM 定规矩、设定人设。好比员工入职时发的<strong>岗位说明书</strong>。</li>
+          <li><code>user</code>（用户）：真人说的话。</li>
+          <li><code>assistant</code>（助手）：LLM 自己回的话。</li>
+        </ul>
+        <p>这个"发一串消息、收一条回复"的过程，官方叫 <strong>chat completion（对话补全）</strong>。整个流程如下图：</p>
+
+        <figure class="figure">
+          <svg width="760" height="300" viewBox="0 0 760 300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LLM 对话补全流程图">
+            <!-- 左：消息列表 -->
+            <rect x="20" y="40" width="230" height="220" rx="12" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="135" y="30" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">输入：消息列表</text>
+            <rect x="38" y="60" width="194" height="46" rx="8" fill="#33556620" stroke="#335566" opacity="0.9"/>
+            <text x="50" y="80" font-family="monospace" font-size="11" fill="#335566">system</text>
+            <text x="50" y="97" font-family="sans-serif" font-size="11" fill="#4A423A">你是一个乐于助人的助手</text>
+            <rect x="38" y="116" width="194" height="46" rx="8" fill="#E0913A20" stroke="#B96A1B"/>
+            <text x="50" y="136" font-family="monospace" font-size="11" fill="#B96A1B">user</text>
+            <text x="50" y="153" font-family="sans-serif" font-size="11" fill="#4A423A">你好！</text>
+            <text x="135" y="240" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72" font-style="italic">（一条条按顺序排好）</text>
+
+            <!-- 箭头 -->
+            <path d="M258 150 L338 150" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arr1)"/>
+            <defs><marker id="arr1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker></defs>
+
+            <!-- 中：LLM -->
+            <path d="M430 60 L500 95 L500 165 L430 200 L360 165 L360 95 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="430" y="125" text-anchor="middle" font-family="serif" font-size="18" fill="#fff">LLM</text>
+            <text x="430" y="148" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#fff">大语言模型</text>
+            <text x="430" y="225" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">按概率"接下一个词"</text>
+
+            <!-- 箭头 -->
+            <path d="M508 130 L588 130" stroke="#B96A1B" stroke-width="2.5" marker-end="url(#arr1)"/>
+
+            <!-- 右：回复 -->
+            <rect x="600" y="90" width="140" height="80" rx="10" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="670" y="80" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">输出：一条回复</text>
+            <text x="614" y="120" font-family="monospace" font-size="11" fill="#B96A1B">assistant</text>
+            <text x="614" y="140" font-family="sans-serif" font-size="12" fill="#4A423A">你好呀，有什么</text>
+            <text x="614" y="157" font-family="sans-serif" font-size="12" fill="#4A423A">可以帮你的吗？</text>
+          </svg>
+          <figcaption>图 1-1：对话补全（chat completion）——喂进一串消息，吐出一条新消息。</figcaption>
+        </figure>
+
+        <h2>二、致命局限：它只会"说"，不会"做"</h2>
+        <p>现在问题来了。假设你问 LLM：<em>"纽约现在天气怎么样？"</em></p>
+        <p>它会非常自信地回答你——然后<strong>编一个数字</strong>。因为它根本没法查实时天气：它没有联网、没有传感器、不能运行代码，它<strong>只能生成文字</strong>。</p>
+
+        <div class="callout warn">
+          <span class="callout-title">核心痛点</span>
+          <p>LLM 就像一个被关在密室里、知识渊博但<strong>手脚被绑住</strong>的天才。你问它任何需要"动手查/算/操作"的事，它都只能靠想象力硬编。这就是我们需要"function calling"的原因。</p>
+        </div>
+
+        <h2>三、function calling：给大脑装上"手脚"</h2>
+        <p><strong>function calling（函数调用）</strong>是现代 LLM 的一项关键能力。它的思路非常巧妙：</p>
+        <p>我们提前告诉 LLM："<em>嘿，你身边有几个工具可以用，比如一个叫 <code>get_weather(location)</code> 的函数能查天气。</em>" 于是当你再问"纽约天气如何"时，LLM 不会瞎编，而是回复一句特殊的话：<strong>"请帮我调用 <code>get_weather</code>，参数 location='NYC'。"</strong></p>
+        <p>注意——<strong>LLM 自己并不会执行这个函数</strong>。它只是"点单"。真正跑代码的是我们的程序。程序跑完，把结果（比如"67°F"）再喂回给 LLM，LLM 这才用人话组织出最终回答。整个配合像这样：</p>
+
+        <figure class="figure">
+          <svg width="760" height="340" viewBox="0 0 760 340" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="function calling 概念图">
+            <defs><marker id="arr2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker></defs>
+
+            <!-- LLM -->
+            <path d="M120 60 L185 92 L185 158 L120 190 L55 158 L55 92 Z" fill="#E0913A" stroke="#B96A1B" stroke-width="2"/>
+            <text x="120" y="130" text-anchor="middle" font-family="serif" font-size="16" fill="#fff">LLM</text>
+
+            <!-- 程序 -->
+            <rect x="480" y="70" width="220" height="110" rx="12" fill="#F3ECDF" stroke="#335566" stroke-width="1.5"/>
+            <text x="590" y="60" text-anchor="middle" font-family="serif" font-size="15" fill="#1F1B16">我们的程序</text>
+            <rect x="500" y="95" width="180" height="30" rx="6" fill="#33556615"/>
+            <text x="512" y="115" font-family="monospace" font-size="12" fill="#335566">def get_weather(...)</text>
+            <text x="590" y="155" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8A7F72">真正执行代码的地方</text>
+
+            <!-- 步骤1：LLM 请求调用 -->
+            <path d="M190 100 L474 100" stroke="#335566" stroke-width="2" marker-end="url(#arr2)"/>
+            <text x="330" y="90" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#335566">① "请调用 get_weather(location='NYC')"</text>
+
+            <!-- 步骤2：程序执行并回传结果 -->
+            <path d="M474 150 L190 150" stroke="#B96A1B" stroke-width="2" marker-end="url(#arr2b)"/>
+            <defs><marker id="arr2b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker></defs>
+            <text x="330" y="168" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#B96A1B">② 程序跑完，把 "67°F" 喂回去</text>
+
+            <!-- 步骤3：LLM 组织最终答案 -->
+            <rect x="30" y="240" width="700" height="60" rx="10" fill="#F2B44118" stroke="#E0913A"/>
+            <text x="55" y="266" font-family="monospace" font-size="12" fill="#B96A1B">assistant</text>
+            <text x="55" y="286" font-family="sans-serif" font-size="13" fill="#4A423A">③ LLM 拿到真实数据后，用人话回答："纽约现在 67 华氏度，天气不错～"</text>
+          </svg>
+          <figcaption>图 1-2：function calling 三步走——LLM 点单、程序做菜、LLM 上菜。</figcaption>
+        </figure>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：点菜的顾客</span>
+          <p>LLM 像餐厅里的顾客：它<strong>不进厨房</strong>，只会看着菜单（工具列表）说"我要这道菜（调用这个函数）"。厨房（我们的程序）把菜做好端上来，顾客再决定下一句话怎么说。</p>
+        </div>
+
+        <h2>四、Agent：把这一切装进一个"会自己转的循环"</h2>
+        <p>有了 function calling，还差最后一块拼图。因为一次问答可能要调用<strong>好几次</strong>工具：查完天气，可能还要查穿衣建议，再查交通……总不能每次都靠人手动把结果喂回去。</p>
+        <p>于是我们写一个<strong>循环</strong>：只要 LLM 还在"点单"（还想调用工具），程序就自动执行、自动把结果喂回去，再问 LLM 一次——直到 LLM 说"我不用工具了，这是最终答案"为止。<strong>这个"打包好"的东西，就是 Agent（智能体）。</strong></p>
+
+        <div class="callout tip">
+          <span class="callout-title">Agent 的极简定义</span>
+          <p><strong>Agent = 一份岗位说明书（system prompt） + 一个工具箱（functions） + 一个自动循环（不停地"问 LLM → 执行工具 → 再问"）。</strong><br>
+          这正是 Swarm 框架帮你做的事。后面我们会看到，这个"循环"就藏在 <code>core.py</code> 的 <code>run()</code> 函数里（第 07 章的主角）。</p>
+        </div>
+
+        <p>把它翻译成一个"带工具箱的员工"的画面，就非常好懂了：</p>
+        <ul>
+          <li><strong>岗位说明书</strong>（instructions / system prompt）：告诉员工"你是谁、该干什么"。</li>
+          <li><strong>工具箱</strong>（functions）：员工能动用的具体本领，比如查天气、查数据库。</li>
+          <li><strong>大脑</strong>（LLM）：员工的思考与决策中枢。</li>
+          <li><strong>循环</strong>（run loop）：员工"思考 → 动手 → 再思考"的工作节奏，直到把活干完。</li>
+        </ul>
+
+        <h2>五、多个 Agent 协作：Swarm 名字的由来</h2>
+        <p>一个员工能力有限。真实系统里常常有<strong>一群</strong>各有专长的员工：接待员、售后专员、翻译……当接待员发现"这事我搞不定"，就把顾客<strong>转接</strong>给对应的专员。这种"转接"在 Swarm 里叫 <strong>handoff（交接）</strong>（第 06 章详讲）。</p>
+        <p>一群会互相转接、协同工作的 Agent，就像一窝分工明确的蜜蜂——这就是 <strong>Swarm（蜂群 🐝）</strong> 这个名字的由来。</p>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>LLM 真的"理解"我的意思吗？</summary>
+            <div class="faq-body">
+              <p>严格说，它是在做极其精妙的"文字接龙"，本质是概率预测，而非人类式的理解。但对我们写程序来说不必纠结哲学问题：只要它的输出足够可靠好用即可。重要的是记住它<strong>会一本正经地编造</strong>，所以关键信息要靠工具去查真数据。</p>
+            </div>
+          </details>
+          <details>
+            <summary>function calling 是 LLM 自己"偷偷"跑了我的代码吗？</summary>
+            <div class="faq-body">
+              <p>不是。这是本章最容易误解的点。LLM <strong>永远不会</strong>执行你的代码，它只会返回"我想调用哪个函数、参数是什么"这样一段结构化文字。执行代码的始终是<strong>你的程序</strong>（在 Swarm 里就是 <code>core.py</code> 里的 <code>handle_tool_calls</code>）。这也是为什么它相对安全、可控。</p>
+            </div>
+          </details>
+          <details>
+            <summary>那 Agent 和直接调 ChatGPT 有啥区别？</summary>
+            <div class="faq-body">
+              <p>直接调 ChatGPT 是"一问一答"，问完就结束。Agent 多了两样：<strong>工具</strong>（能真正查/算/操作）和<strong>循环</strong>（能自动多轮调用工具直到完成任务）。所以 Agent 能完成"查天气 → 根据天气给建议 → 帮你订提醒"这种需要多步动手的任务。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li><strong>LLM</strong> 是个只会"文字接龙"的大脑：输入一串消息，输出一条回复，但不会动手做事。</li>
+            <li><strong>function calling</strong> 给它装上手脚：LLM 负责"点单"（说要调哪个函数），程序负责"做菜"（真正执行），再把结果喂回去。</li>
+            <li><strong>Agent</strong> = 说明书 + 工具箱 + 自动循环，把上面这套配合打包起来，能自主完成多步任务。</li>
+            <li>多个会互相 <strong>handoff（交接）</strong> 的 Agent 协作，就是 <strong>Swarm（蜂群）</strong>。</li>
+          </ul>
+          <p style="margin-bottom:0;">概念铺垫完毕。下一章，我们用 5 行真代码，亲手跑通第一个 Agent。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-00.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">00 · 前言与如何阅读</span>
+          </a>
+          <a class="next" href="chapter-02.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">02 · 跑通第一个 Agent</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>

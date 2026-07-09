@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>handoff 的极简哲学 · Swarm 深度解析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <button class="menu-toggle" aria-label="菜单"><span></span></button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <svg class="hex-logo" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <path d="M20 2 L35 11 L35 29 L20 38 L5 29 L5 11 Z" fill="#B96A1B" stroke="#8A4E12" stroke-width="1.5"/>
+          <text x="20" y="26" text-anchor="middle" font-size="16" fill="#fff" font-family="serif">🐝</text>
+        </svg>
+        <span class="brand-title">Swarm 深度解析<span class="brand-sub">设计哲学 · 实战 · 改造</span></span>
+      </a>
+      <nav>
+        <div class="nav-group-title">开始</div>
+        <a href="index.html"><span class="ch-num">·</span><span>封面与目录</span></a>
+        <a href="chapter-00.html"><span class="ch-num">00</span><span>前言：从入门到深入</span></a>
+        <div class="nav-group-title">第一部分 · 设计哲学与权衡</div>
+        <a href="chapter-01.html"><span class="ch-num">01</span><span>无状态设计</span></a>
+        <a href="chapter-02.html"><span class="ch-num">02</span><span>深拷贝与副作用边界</span></a>
+        <a href="chapter-03.html"><span class="ch-num">03</span><span>约定优于配置</span></a>
+        <a href="chapter-04.html"><span class="ch-num">04</span><span>handoff 的极简哲学</span></a>
+        <a href="chapter-05.html"><span class="ch-num">05</span><span>主循环的边界与健壮性</span></a>
+        <a href="chapter-06.html"><span class="ch-num">06</span><span>与生产框架的对比</span></a>
+        <div class="nav-group-title">第二部分 · 进阶示例与实战</div>
+        <a href="chapter-07.html"><span class="ch-num">07</span><span>分诊编排实战</span></a>
+        <a href="chapter-08.html"><span class="ch-num">08</span><span>给 Agent 接真实数据库</span></a>
+        <a href="chapter-09.html"><span class="ch-num">09</span><span>让 Agent 会查资料（RAG）</span></a>
+        <a href="chapter-10.html"><span class="ch-num">10</span><span>怎么给 Agent 做评测</span></a>
+        <div class="nav-group-title">第三部分 · 动手改造</div>
+        <a href="chapter-11.html"><span class="ch-num">11</span><span>改造 Swarm 与 mini-Swarm</span></a>
+        <a href="chapter-12.html"><span class="ch-num">12</span><span>全景收束与生产路线图</span></a>
+        <div class="nav-group-title">相关</div>
+        <a href="../swarm-book/index.html"><span class="ch-num">↩</span><span>返回入门版</span></a>
+      </nav>
+    </aside>
+    <div class="scrim"></div>
+
+    <main class="content">
+      <div class="inner">
+
+        <header class="chapter-hero">
+          <svg class="hero-hexes" width="180" height="180" viewBox="0 0 180 180" fill="none">
+            <path d="M60 10 L82 23 L82 49 L60 62 L38 49 L38 23 Z" fill="#B96A1B" opacity="0.5"/>
+            <path d="M110 40 L132 53 L132 79 L110 92 L88 79 L88 53 Z" fill="#E0913A" opacity="0.5"/>
+            <path d="M60 70 L82 83 L82 109 L60 122 L38 109 L38 83 Z" fill="#335566" opacity="0.4"/>
+          </svg>
+          <div class="ch-index">第四章 · Chapter 04</div>
+          <div class="ch-bignum">04</div>
+          <h1>handoff 的极简哲学</h1>
+          <p class="lede">多 Agent 系统里最核心的动作是"交接"——把对话从一个 Agent 转给另一个。你以为这需要一套专门的路由 API？Swarm 的答案让人拍案：<strong>让一个普通工具函数 <code>return</code> 一个 Agent 就行了</strong>。没有新概念，没有新 API。这一章我们看它是怎么用三小段代码做到的。</p>
+        </header>
+
+        <h2>本章目标</h2>
+        <ul class="goals">
+          <li>看懂交接机制的<strong>三步链路</strong>：工具返回 Agent → 打包进 Result → 换掉 <code>active_agent</code>。</li>
+          <li>理解"返回 Agent 即交接"这一极简设计的洞察与代价。</li>
+          <li>看清交接后历史是<strong>连续</strong>的，以及那条 <code>role=tool</code> 消息里到底写了什么。</li>
+          <li>能对照"显式路由表"方案，判断两种思路各自适合什么场景。</li>
+        </ul>
+
+        <h2>前置回顾</h2>
+        <p>入门版里你已经跑过"英语 Agent 遇到西语用户就转给西语 Agent"的例子，也见过 <code>response.agent</code> 会变成新的 Agent。当时这看起来像框架内置的某种"转移功能"。这一章要揭穿的真相是：<strong>Swarm 里根本没有一个叫 handoff 的东西</strong>。交接不是一个特性，而是"工具返回值恰好是个 Agent"时的自然结果。上一章结尾埋的那个钩子——工具返回的不是字符串会怎样——现在揭晓。</p>
+
+        <h2>一、第一步：工具返回 Agent，被包成 Result</h2>
+        <p>回忆第 03 章：工具的返回值会交给 <code>handle_function_result</code> 处理。看它怎么对待"返回值是个 Agent"的情况（<code>core.py</code> 第 71–87 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · handle_function_result</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">    def handle_function_result(self, result, debug) -> Result:
+        match result:
+            case Result() as result:
+                return result
+
+            case Agent() as agent:                      # 第76行：返回值是个 Agent！
+                return Result(
+                    value=json.dumps({"assistant": agent.name}),  # 第78行
+                    agent=agent,                        # 第79行：把这个 Agent 记进 Result
+                )
+            case _:
+                try:
+                    return Result(value=str(result))    # 普通返回值：转成字符串
+                except Exception as e:
+                    ...</code></pre>
+        </div>
+        <p>这个 <code>match</code> 分三种情况：返回值本身是 <code>Result</code> 就直接用；是普通值（字符串、数字等）就 <code>str()</code> 一下装进 <code>Result.value</code>；而<strong>第 76 行</strong>——如果返回值是一个 <code>Agent</code> 实例，就构造一个特殊的 <code>Result</code>：把这个 Agent 放进 <code>Result.agent</code>（第 79 行），同时给 <code>value</code> 填一句 <code>{"assistant": "&lt;新agent名&gt;"}</code>（第 78 行）当作这次工具调用的"结果文本"。</p>
+        <p>关键洞察就在这里：<strong>Swarm 把"我要交接"这件事，编码成了"工具返回一个 Agent"</strong>。<code>Result</code> 这个结构（<code>types.py</code> 第 29–41 行）里恰好有个 <code>agent</code> 字段，就是为承接它准备的。</p>
+
+        <h2>二、第二步：把 Result 里的 Agent 冒泡上来</h2>
+        <p><code>handle_tool_calls</code> 拿到每个工具的 <code>Result</code> 后（<code>core.py</code> 第 124–135 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · handle_tool_calls（节选）</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">            result: Result = self.handle_function_result(raw_result, debug)
+            partial_response.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "tool_name": name,
+                    "content": result.value,          # 就是那句 {"assistant": "..."}
+                }
+            )
+            partial_response.context_variables.update(result.context_variables)
+            if result.agent:                          # 第134行：这个 Result 带 Agent 吗？
+                partial_response.agent = result.agent # 第135行：带！记到 partial_response</code></pre>
+        </div>
+        <p><strong>第 134–135 行</strong>：如果这个 <code>Result</code> 里有 <code>agent</code>（说明刚才那个工具返回了 Agent），就把它记到本批工具调用的汇总结果 <code>partial_response.agent</code> 上。同时注意，那条 <code>role=tool</code> 的消息照常被追加进历史——它的 <code>content</code> 正是第 78 行那句 <code>{"assistant": "&lt;新agent名&gt;"}</code>。</p>
+
+        <h2>三、第三步：主循环换掉当前 Agent</h2>
+        <p>回到 <code>run()</code> 主循环末尾（<code>core.py</code> 第 283–286 行）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>swarm/core.py · run 主循环换 Agent</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">            history.extend(partial_response.messages)
+            context_variables.update(partial_response.context_variables)
+            if partial_response.agent:                # 第285行
+                active_agent = partial_response.agent # 第286行：下一轮就用新 Agent 了</code></pre>
+        </div>
+        <p><strong>第 285–286 行</strong>：如果本批工具调用产生了新 Agent，就把 <code>active_agent</code> 换成它。于是<strong>下一轮循环</strong>调用 <code>get_chat_completion</code> 时，用的就是新 Agent 的 instructions 和工具集了。交接完成——全程<strong>只改了一个变量</strong>。</p>
+
+        <div class="callout analogy">
+          <span class="callout-title">类比：接力赛递交接力棒</span>
+          <p>交接不需要裁判喊停、重开一局。前一棒选手（英语 Agent）跑到交接区，把接力棒（<code>active_agent</code> 这个变量）往后一递——<strong>递棒的动作本身，就是"return 一个 Agent"</strong>。赛道（<code>history</code>）是同一条、连续的，观众看到的还是同一场比赛，只是从下一段起换了个人在跑。没有人清空跑道、没有人重置比分。</p>
+        </div>
+
+        <figure class="figure">
+          <svg width="760" height="380" viewBox="0 0 760 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="两种交接思路对比图">
+            <defs>
+              <marker id="h1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#B96A1B"/></marker>
+              <marker id="h2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#335566"/></marker>
+            </defs>
+
+            <!-- 分隔线 -->
+            <line x1="380" y1="40" x2="380" y2="350" stroke="#D3C4A8" stroke-width="1.5" stroke-dasharray="4 5"/>
+
+            <!-- 左：Swarm 极简方案 -->
+            <text x="185" y="34" text-anchor="middle" font-family="serif" font-size="15" fill="#B96A1B">Swarm：返回 Agent 即交接</text>
+
+            <rect x="40" y="60" width="290" height="52" rx="10" fill="#E0913A15" stroke="#B96A1B"/>
+            <text x="185" y="82" text-anchor="middle" font-family="monospace" font-size="11" fill="#8A4E12">def transfer(): return spanish_agent</text>
+            <text x="185" y="100" text-anchor="middle" font-family="sans-serif" font-size="10.5" fill="#8A7F72">一个普通工具函数</text>
+
+            <path d="M185 114 L185 146" stroke="#B96A1B" stroke-width="2" marker-end="url(#h1)"/>
+
+            <rect x="40" y="150" width="290" height="46" rx="10" fill="#F2B44120" stroke="#E0913A"/>
+            <text x="185" y="170" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1F1B16">Result(agent=spanish_agent)</text>
+            <text x="185" y="187" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">handle_function_result 打包</text>
+
+            <path d="M185 198 L185 230" stroke="#B96A1B" stroke-width="2" marker-end="url(#h1)"/>
+
+            <rect x="40" y="234" width="290" height="46" rx="10" fill="#33556612" stroke="#335566"/>
+            <text x="185" y="254" text-anchor="middle" font-family="monospace" font-size="11" fill="#335566">active_agent = spanish_agent</text>
+            <text x="185" y="271" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#8A7F72">主循环换一个变量，完事</text>
+
+            <text x="185" y="312" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#74B36B">✓ 零新概念 · 任意工具都能触发</text>
+            <text x="185" y="330" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#c25b4e">✗ 没有集中的路由全景视图</text>
+
+            <!-- 右：显式路由表方案 -->
+            <text x="575" y="34" text-anchor="middle" font-family="serif" font-size="15" fill="#335566">显式路由表 / 状态机</text>
+
+            <rect x="470" y="60" width="210" height="118" rx="10" fill="#F3ECDF" stroke="#D3C4A8"/>
+            <text x="575" y="82" text-anchor="middle" font-family="serif" font-size="12" fill="#1F1B16">Router 转移表</text>
+            <line x1="490" y1="92" x2="660" y2="92" stroke="#D3C4A8"/>
+            <text x="575" y="110" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">triage → sales</text>
+            <text x="575" y="130" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">triage → refund</text>
+            <text x="575" y="150" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">sales → triage</text>
+            <text x="575" y="170" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#335566">refund → triage</text>
+
+            <!-- 状态节点 -->
+            <circle cx="500" cy="230" r="22" fill="#E0913A" stroke="#B96A1B"/>
+            <text x="500" y="234" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">triage</text>
+            <circle cx="575" cy="290" r="22" fill="#335566" stroke="#22404d"/>
+            <text x="575" y="294" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">sales</text>
+            <circle cx="650" cy="230" r="22" fill="#335566" stroke="#22404d"/>
+            <text x="650" y="234" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#fff">refund</text>
+            <path d="M518 244 L560 278" stroke="#335566" stroke-width="1.5" marker-end="url(#h2)"/>
+            <path d="M522 226 L626 228" stroke="#335566" stroke-width="1.5" marker-end="url(#h2)"/>
+
+            <text x="575" y="330" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#74B36B">✓ 可视化 · 可静态校验全部转移</text>
+            <text x="575" y="348" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#c25b4e">✗ 更重 · 更死板</text>
+          </svg>
+          <figcaption>图 4-1：左边 Swarm——工具 <code>return</code> 一个 Agent，主循环把 <code>active_agent</code> 一换即可；右边"显式路由表"——先声明所有转移规则，再按图执行。两种思路，各有取舍。</figcaption>
+        </figure>
+
+        <h2>四、极简 vs 显式：交接设计的取舍</h2>
+        <div class="tradeoff">
+          <div class="tradeoff-title">返回 Agent 即交接 vs 显式路由表</div>
+          <div class="tradeoff-cols">
+            <div class="tradeoff-col pick">
+              <div class="tc-head">Swarm：返回 Agent 即交接</div>
+              <ul>
+                <li><strong>零新概念</strong>：不用学任何 handoff API，会写工具函数就会写交接。</li>
+                <li><strong>任意工具都能触发</strong>：一个查订单的工具，也可以在查完后顺手 <code>return</code> 另一个 Agent。</li>
+                <li><strong>关系是运行时动态的</strong>：转给谁可以由代码逻辑、甚至数据现算，极其灵活。</li>
+              </ul>
+            </div>
+            <div class="tradeoff-col alt">
+              <div class="tc-head">显式路由表 / 状态机</div>
+              <ul>
+                <li>有<strong>集中的全景视图</strong>：所有 A→B→C 的转移一张表看尽，便于可视化。</li>
+                <li><strong>可静态校验</strong>：能提前检查"有没有转移到不存在的节点""会不会成环"。</li>
+                <li>但更<strong>重、更死板</strong>：加一条新路径要改路由表，动态路由难表达。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>Swarm 用"返回 Agent"把交接降维成了"函数返回值"这个每个程序员都懂的概念，代价是<strong>你无法一眼看全"谁能转给谁"</strong>——转移逻辑散落在各个工具函数里。对教学和小规模编排，这份灵活与极简很值；到了需要审计、可视化全部流转路径的大型生产系统，显式路由的"笨重"反而成了优点。</p>
+
+        <div class="pitfall">
+          <span class="pitfall-title">陷阱：以为交接会"清空历史、重开对话"</span>
+          <p>交接后，那个触发交接的工具会在历史里留下一条 <code>role=tool</code> 消息，它的 <code>content</code> 是 <code>{"assistant": "&lt;新agent名&gt;"}</code>（来自第 78 行），<strong>而不是</strong>什么用户可读的回复。更重要的是：<strong>历史是连续的、不会被清空</strong>——新 Agent 接手时，看到的是包含之前所有对话的完整 <code>history</code>，只是从这一刻起换成它来说话。别误以为交接像"转接电话时对方听不到之前的通话"，恰恰相反，新 Agent 全程"在场"，能看到之前的上下文。</p>
+        </div>
+
+        <h2>可运行片段：英语转西语</h2>
+        <p>这就是 <code>examples/basic/agent_handoff.py</code> 的全部——注意交接就藏在那个再普通不过的 <code>transfer_to_spanish_agent</code> 里（真跑需要 API Key）：</p>
+        <div class="code-block">
+          <div class="code-head">
+            <span class="code-title"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>examples/basic/agent_handoff.py</span>
+            <button class="copy-btn">复制</button>
+          </div>
+          <pre><code class="language-python">from swarm import Swarm, Agent
+
+client = Swarm()
+
+english_agent = Agent(name="English Agent", instructions="You only speak English.")
+spanish_agent = Agent(name="Spanish Agent", instructions="You only speak Spanish.")
+
+def transfer_to_spanish_agent():
+    """Transfer spanish speaking users immediately."""
+    return spanish_agent          # ← 交接的全部秘密：return 一个 Agent
+
+english_agent.functions.append(transfer_to_spanish_agent)
+
+messages = [{"role": "user", "content": "Hola. ¿Como estás?"}]
+response = client.run(agent=english_agent, messages=messages)
+
+print(response.messages[-1]["content"])   # 最后一句由 spanish_agent 说出</code></pre>
+        </div>
+        <div class="output-block">
+          <div class="out-label">预期输出（西语，措辞每次略有不同）</div>
+          <pre>¡Hola! Estoy bien, gracias. ¿Y tú cómo estás?</pre>
+        </div>
+        <p>发生了什么：english_agent 看到西语输入，决定调用 <code>transfer_to_spanish_agent</code>；这个工具 <code>return spanish_agent</code>，被打包成 <code>Result(agent=spanish_agent)</code>，主循环把 <code>active_agent</code> 换成西语 Agent；下一轮循环里，西语 Agent 面对同一段历史，用西语回复。整个过程用户只提了一句话，交接在幕后一气呵成。</p>
+
+        <div class="callout note">
+          <span class="callout-title">铺垫：双向交接与分诊</span>
+          <p>把交接反过来用，就能做出"分诊台"：一个 triage Agent 根据用户意图把对话分派给销售/退款/技术等专职 Agent，各专职 Agent 又能通过一个 <code>transfer_back_to_triage()</code> 把控制权交还分诊台。这正是 <code>examples/triage_agent</code> 的思路，也是第 07 章"分诊编排实战"要大展身手的地方。你会发现，再复杂的编排，底层也还是这一个"返回 Agent"的动作在反复发生。</p>
+        </div>
+
+        <details class="deepbox">
+          <summary>延伸：其他框架的 handoff 长什么样？</summary>
+          <div class="deepbox-body">
+            <p><strong>OpenAI Agents SDK</strong>（Swarm 的生产级后继）在理念上和 Swarm 一脉相承——它同样把 handoff 建模成"一种特殊的 tool"：你在 Agent 上声明 <code>handoffs=[agent_b, agent_c]</code>，SDK 会自动为每个目标生成一个对应的转移工具暴露给 LLM。区别是 SDK 把这层做得更正式（有专门的 handoff 类型、可加输入过滤、可带结构化数据），但"交接=调用一个工具"的内核没变。理解了 Swarm 的极简版，你就抓住了 SDK handoff 的精髓。</p>
+            <p><strong>LangGraph</strong> 走的是另一条路：它把多 Agent 编排显式建模成一张<strong>图</strong>，节点是 Agent、边是转移规则，你先把图画出来（声明 edges），运行时按图游走。这就是图 4-1 右边那种"显式路由表/状态机"的典型代表——全景清晰、可校验，但要先付出建图的成本。两条路没有对错，只是把"灵活"和"可控"这对矛盾放在了天平的不同位置。</p>
+          </div>
+        </details>
+
+        <h2>常见疑问</h2>
+        <div class="faq">
+          <details>
+            <summary>一批工具调用里如果有两个都返回了 Agent，听谁的？</summary>
+            <div class="faq-body">
+              <p>看第 134–135 行：<code>partial_response.agent</code> 会被逐个覆盖，所以<strong>最后一个返回 Agent 的工具"胜出"</strong>。实践中很少让多个工具同时触发交接，但知道这个规则能帮你理解边界行为。工具是串行 <code>for</code> 循环执行的（这一点第 05 章细讲），所以"最后一个"是确定的、可预测的。</p>
+            </div>
+          </details>
+          <details>
+            <summary>交接后，新 Agent 的工具集和 instructions 什么时候生效？</summary>
+            <div class="faq-body">
+              <p><strong>下一轮循环</strong>。<code>active_agent</code> 在本轮末尾（第 286 行）被换掉后，要等 <code>while</code> 进入下一圈、再次调用 <code>get_chat_completion</code>（第 260 行）时，才会用新 Agent 的 <code>instructions</code> 和 <code>functions</code> 去请求 LLM。所以交接不是"立刻由新 Agent 补一句"，而是"从下一次模型调用起换人"。</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="summary-box">
+          <h2>本章小结</h2>
+          <ul>
+            <li>Swarm <strong>没有专门的交接 API</strong>——交接就是"让一个普通工具函数 <code>return</code> 一个 Agent"。</li>
+            <li>三步链路：<code>handle_function_result</code> 把返回的 Agent 包成 <code>Result(agent=...)</code>（第 76–80 行）→ <code>handle_tool_calls</code> 冒泡到 <code>partial_response.agent</code>（第 134–135 行）→ 主循环换掉 <code>active_agent</code>（第 285–286 行）。</li>
+            <li>交接后<strong>历史连续、不清空</strong>；触发交接的 <code>role=tool</code> 消息 <code>content</code> 是 <code>{"assistant": "&lt;新agent名&gt;"}</code>。</li>
+            <li>极简换来零概念、任意工具可触发、运行时动态；代价是没有集中的路由全景，不便静态分析。</li>
+          </ul>
+          <p style="margin-bottom:0;">我们已经把 <code>run()</code> 主循环里"换 Agent"这条支线看透了。但主循环还有一堆<strong>防御性的边界细节</strong>没讲：它凭什么不会死循环？工具名写错了会崩吗？"并行工具调用"到底并不并行？下一章逐一拆解主循环的健壮性护栏。</p>
+        </div>
+
+        <nav class="chapter-nav">
+          <a class="prev" href="chapter-03.html">
+            <span class="nav-dir">← 上一章</span>
+            <span class="nav-label">03 · 约定优于配置</span>
+          </a>
+          <a class="next" href="chapter-05.html">
+            <span class="nav-dir">下一章 →</span>
+            <span class="nav-label">05 · 主循环的边界与健壮性</span>
+          </a>
+        </nav>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/book.js"></script>
+</body>
+</html>
