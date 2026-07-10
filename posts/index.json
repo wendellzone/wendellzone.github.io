@@ -1,5 +1,18 @@
 [
   {
+    "slug": "openai-swarm-book-guide",
+    "title": "OpenAI Swarm 中文精读：入门 + 进阶两本电子书全收录",
+    "date": "2026-07-10",
+    "tags": [
+      "AI",
+      "Agent",
+      "OpenAI",
+      "Swarm"
+    ],
+    "summary": "OpenAI Swarm 开源源码两本中文电子书上线——入门版逐行精读，进阶版讲设计哲学、实战与改造，附阅读路径。",
+    "readingTime": 5
+  },
+  {
     "slug": "claude-agent-skills-showdown",
     "title": "Claude Agent Skills 怎么选:superpowers、everything-claude-code 与高 star 方案横评",
     "date": "2026-07-08",
